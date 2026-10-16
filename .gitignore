@@ -1,0 +1,18 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Machine-specific MCP configuration and inactive editor addon
+.codex/
+.mcp.json
+addons/godot_ai/
+addons/.godot_ai_update/
+
+# Editor-local directories and credentials
+export_templates/
+feature_profiles/
+script_templates/
+text_editor_themes/
+.env
+.env.*
+export_credentials.cfg

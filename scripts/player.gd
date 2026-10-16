@@ -1,0 +1,94 @@
+extends CharacterBody2D
+
+signal health_changed(current: float, maximum: float)
+signal defeated
+signal cast(origin: Vector2, direction: Vector2, damage: float)
+
+@export_range(50, 600, 5) var move_speed: float = 245.0
+@export_range(1, 500, 1) var max_health: float = 100.0
+@export_range(1, 100, 1) var base_damage: float = 14.0
+@export_range(0.08, 2.0, 0.01) var base_cast_interval: float = 0.36
+@export_range(0.1, 2.0, 0.05) var hit_protection: float = 0.7
+
+var health: float
+var damage: float
+var cast_interval: float
+var projectile_count: int
+var cooldown: float = 0.0
+var protection: float = 0.0
+var aim: Vector2 = Vector2.RIGHT
+var arena_bounds: Rect2 = Rect2(64, 128, 1152, 592)
+var controls_enabled: bool = true
+var invulnerable: bool = false
+var spread_angle: float = 0.19
+
+func _ready() -> void:
+	reset_run()
+
+func reset_run() -> void:
+	health = max_health
+	damage = base_damage
+	cast_interval = base_cast_interval
+	projectile_count = 1
+	cooldown = 0.0
+	protection = 0.0
+	invulnerable = false
+	velocity = Vector2.ZERO
+	health_changed.emit(health, max_health)
+	queue_redraw()
+
+func _physics_process(delta: float) -> void:
+	cooldown = maxf(0.0, cooldown - delta)
+	protection = maxf(0.0, protection - delta)
+	if controls_enabled and health > 0.0:
+		velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * move_speed
+		move_and_slide()
+		position = position.clamp(arena_bounds.position + Vector2.ONE * 17, arena_bounds.end - Vector2.ONE * 17)
+		var mouse_direction: Vector2 = get_global_mouse_position() - global_position
+		if mouse_direction.length_squared() > 1.0:
+			aim = mouse_direction.normalized()
+		if Input.is_action_pressed("cast"):
+			attack(aim)
+	queue_redraw()
+
+func attack(direction: Vector2) -> void:
+	if cooldown > 0.0 or health <= 0.0 or direction.is_zero_approx():
+		return
+	cooldown = cast_interval
+	for index in projectile_count:
+		# Preserve the aimed shot and alternate additional shots on either side.
+		var spread: float = 0.0
+		if index > 0:
+			spread = ceilf(index / 2.0) * spread_angle * (-1.0 if index % 2 == 1 else 1.0)
+		var shot_direction: Vector2 = direction.normalized().rotated(spread)
+		cast.emit(global_position + shot_direction * 25, shot_direction, damage)
+
+func take_damage(amount: float) -> void:
+	if amount <= 0.0 or protection > 0.0 or health <= 0.0 or (OS.is_debug_build() and invulnerable):
+		return
+	health = maxf(0.0, health - amount)
+	protection = hit_protection
+	health_changed.emit(health, max_health)
+	if health <= 0.0:
+		defeated.emit()
+	queue_redraw()
+
+func _draw() -> void:
+	draw_ellipse_shadow()
+	var robe: Color = Color("498cbb") if protection <= 0.0 else Color("e8cab0")
+	draw_colored_polygon(PackedVector2Array([Vector2(-16, 16), Vector2(-11, -8), Vector2(0, -20), Vector2(12, -8), Vector2(17, 16), Vector2(0, 23)]), robe.darkened(0.3))
+	draw_circle(Vector2(0, -5), 12, robe)
+	draw_circle(Vector2(2, -3), 7, Color("162332"))
+	draw_line(Vector2(-2, -3), Vector2(6, -3), Color("a5e4ee"), 2)
+	draw_line(Vector2(-10, 8), Vector2(10, 8), Color("d0ad73"), 3)
+	var hand: Vector2 = aim * 20
+	draw_line(hand - aim.orthogonal() * 12, hand + aim.orthogonal() * 12, Color("b69d7c"), 4)
+	draw_circle(hand - aim.orthogonal() * 14, 5, Color("f8b268"))
+	draw_rect(Rect2(-24, 1, 13, 15), Color("b8a688"))
+	draw_line(Vector2(-18, 2), Vector2(-18, 15), Color("4e5263"), 2)
+	draw_arc(Vector2.ZERO, 25, aim.angle() - 0.25, aim.angle() + 0.25, 10, Color("f0ca88"), 2)
+
+func draw_ellipse_shadow() -> void:
+	draw_set_transform(Vector2(0, 18), 0, Vector2(1.0, 0.35))
+	draw_circle(Vector2.ZERO, 23, Color(0, 0, 0, 0.4))
+	draw_set_transform(Vector2.ZERO)

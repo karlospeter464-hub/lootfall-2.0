@@ -1,0 +1,484 @@
+extends Node2D
+
+const ENEMY = preload("res://scenes/enemy.tscn")
+const PROJECTILE = preload("res://scenes/projectile.tscn")
+const PICKUP = preload("res://scripts/loot_pickup.gd")
+const PROGRESS = preload("res://scripts/progress_store.gd")
+const DEV_CONSOLE = preload("res://scripts/dev_console.gd")
+const BOUNDS := Rect2(64, 128, 1152, 592)
+const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan"]
+
+enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED }
+
+@export_range(1, 50, 1) var first_wave_enemies: int = 8
+@export_range(0, 20, 1) var enemies_per_wave: int = 4
+@export_range(1, 100, 1) var enemy_limit: int = 18
+@export_range(0.1, 3.0, 0.05) var spawn_interval: float = 0.65
+@export_range(100, 600, 10) var safe_spawn_distance: float = 260.0
+@export_range(10, 300, 5) var enemy_speed: float = 85.0
+@export_range(1, 500, 1) var enemy_health: float = 28.0
+@export_range(1, 100, 1) var enemy_damage: float = 14.0
+@export_range(0, 50, 1) var enemy_health_growth: float = 3.0
+@export_range(0, 30, 1) var enemy_speed_growth: float = 5.0
+@export_range(5, 100, 1) var total_waves: int = 6
+@export_range(0.1, 10, 0.1) var intermission: float = 1.5
+@export_range(0, 1, 0.01) var upgrade_damage_bonus: float = 0.35
+@export_range(0, 0.8, 0.01) var upgrade_cast_reduction: float = 0.2
+@export_range(1, 3, 1) var upgrade_projectiles: int = 1
+@export_range(100, 1500, 25) var projectile_speed: float = 650.0
+@export_range(0.1, 5, 0.1) var projectile_lifetime: float = 1.8
+@export_range(0, 0.6, 0.01) var projectile_spread: float = 0.19
+@export_range(0, 1, 0.005) var drop_chance: float = 0.02
+@export_range(10, 100, 1) var pickup_radius: float = 36.0
+@export_range(20, 250, 5) var explosion_radius: float = 85.0
+@export_range(0, 3, 0.05) var explosion_damage_ratio: float = 0.6
+@export_range(0, 1000, 1) var echoes_per_wave: int = 10
+
+@onready var player = $Player
+@onready var enemies: Node2D = $Enemies
+@onready var projectiles: Node2D = $Projectiles
+
+var state: State = State.BETWEEN_WAVES
+var wave: int = 0
+var best_wave: int = 0
+var remaining_to_spawn: int = 0
+var spawn_clock: float = 0.0
+var break_clock: float = 1.2
+var kills: int = 0
+var upgrades_chosen: int = 0
+var effects: Array[Dictionary] = []
+var rng := RandomNumberGenerator.new()
+var hud: Label
+var health_label: Label
+var health_bar: ProgressBar
+var build_label: Label
+var overlay: PanelContainer
+var overlay_title: Label
+var overlay_text: Label
+var buttons: HBoxContainer
+var loot: Node2D
+var dev_console
+var progress = PROGRESS.new()
+var completed_waves: int = 0
+var codex_active: bool = false
+var reward_due: int = 0
+var reward_saved: bool = false
+var result_victory: bool = false
+var power_upgrades: int = 0
+var quick_upgrades: int = 0
+var fan_upgrades: int = 0
+var elapsed: float = 0.0
+var damage_dealt: float = 0.0
+var damage_taken: float = 0.0
+var last_health: float = 0.0
+var shots_fired: int = 0
+var shots_hit: int = 0
+var drops_created: int = 0
+var enemies_frozen: bool = false
+var loot_label: Label
+var wallet_label: Label
+
+func _ready() -> void:
+	if OS.get_cmdline_user_args().has("--test-mode"):
+		progress.path = "user://test_progress_%d.json" % OS.get_process_id()
+	progress.load_progress()
+	best_wave = progress.best_wave
+	rng.randomize()
+	player.arena_bounds = BOUNDS
+	player.cast.connect(_cast)
+	player.health_changed.connect(_health_changed)
+	player.defeated.connect(func(): finish_run(false))
+	loot = Node2D.new()
+	loot.name = "Loot"
+	loot.process_mode = Node.PROCESS_MODE_PAUSABLE
+	add_child(loot)
+	create_interface()
+	if OS.is_debug_build():
+		dev_console = DEV_CONSOLE.new()
+		dev_console.game = self
+		add_child(dev_console)
+	restart_run()
+
+func _process(delta: float) -> void:
+	if get_tree().paused:
+		return
+	elapsed += delta
+	for effect in effects:
+		effect.life -= delta
+	effects = effects.filter(func(effect: Dictionary) -> bool: return effect.life > 0.0)
+	queue_redraw()
+	if state == State.FIGHTING:
+		spawn_clock -= delta
+		if remaining_to_spawn > 0 and spawn_clock <= 0 and enemies.get_child_count() < enemy_limit:
+			spawn_enemy()
+			spawn_clock = spawn_interval
+		if remaining_to_spawn == 0 and enemies.get_child_count() == 0:
+			complete_wave()
+	elif state == State.BETWEEN_WAVES:
+		break_clock -= delta
+		if break_clock <= 0:
+			begin_wave()
+	update_hud()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if is_instance_valid(dev_console) and dev_console.is_open:
+		return
+	if event.is_action_pressed("pause") and not event.is_echo():
+		if state == State.PAUSED:
+			resume_run()
+		elif state in [State.FIGHTING, State.BETWEEN_WAVES]:
+			pause_run()
+		get_viewport().set_input_as_handled()
+
+func restart_run() -> void:
+	# Do not silently discard a reward whose write failed.
+	if state == State.FINISHED and not reward_saved:
+		settle_reward()
+		if not reward_saved:
+			return
+	if is_instance_valid(dev_console):
+		dev_console.close_console()
+	get_tree().paused = false
+	for container in [enemies, projectiles, loot]:
+		for child in container.get_children():
+			container.remove_child(child)
+			child.queue_free()
+	effects.clear()
+	wave = 0
+	kills = 0
+	upgrades_chosen = 0
+	completed_waves = 0
+	codex_active = false
+	reward_due = 0
+	reward_saved = false
+	power_upgrades = 0
+	quick_upgrades = 0
+	fan_upgrades = 0
+	elapsed = 0.0
+	damage_dealt = 0.0
+	damage_taken = 0.0
+	shots_fired = 0
+	shots_hit = 0
+	drops_created = 0
+	enemies_frozen = false
+	remaining_to_spawn = 0
+	spawn_clock = 0.0
+	break_clock = 1.2
+	state = State.BETWEEN_WAVES
+	player.position = BOUNDS.get_center()
+	player.reset_run()
+	update_build()
+	player.controls_enabled = true
+	overlay.hide()
+	update_hud()
+
+func begin_wave() -> void:
+	wave += 1
+	best_wave = maxi(best_wave, wave)
+	remaining_to_spawn = first_wave_enemies + (wave - 1) * enemies_per_wave
+	spawn_clock = 0.0
+	state = State.FIGHTING
+
+func spawn_enemy() -> void:
+	if state != State.FIGHTING or remaining_to_spawn <= 0 or enemies.get_child_count() >= enemy_limit:
+		return
+	var spawn_at: Vector2 = Vector2.ZERO
+	# Opposite corners always provide a safe fallback, even with a large Inspector radius.
+	var candidates: Array[Vector2] = []
+	for attempt in 12:
+		var point := Vector2(rng.randf_range(92, 1188), rng.randf_range(156, 692))
+		if attempt % 2 == 0:
+			point.x = 92 if rng.randf() < 0.5 else 1188
+		else:
+			point.y = 156 if rng.randf() < 0.5 else 692
+		candidates.append(point)
+	for corner in [BOUNDS.position + Vector2(28, 28), BOUNDS.end - Vector2(28, 28), Vector2(92, 692), Vector2(1188, 156)]:
+		candidates.append(corner)
+	var farthest: float = -1.0
+	for candidate in candidates:
+		var distance: float = candidate.distance_to(player.position)
+		if distance > farthest:
+			farthest = distance
+			spawn_at = candidate
+		if distance >= safe_spawn_distance:
+			spawn_at = candidate
+			break
+	var enemy = ENEMY.instantiate()
+	enemy.position = spawn_at
+	enemy.target = player
+	enemy.bounds = BOUNDS
+	enemy.max_health = enemy_health + (wave - 1) * enemy_health_growth
+	enemy.move_speed = enemy_speed + (wave - 1) * enemy_speed_growth
+	enemy.contact_damage = enemy_damage
+	enemy.frozen = enemies_frozen
+	enemy.hit.connect(show_hit)
+	enemy.slain.connect(enemy_slain)
+	enemies.add_child(enemy)
+	remaining_to_spawn -= 1
+
+func complete_wave() -> void:
+	if state != State.FIGHTING:
+		return
+	completed_waves = maxi(completed_waves, wave)
+	if wave >= total_waves:
+		finish_run(true)
+	elif wave in [2, 4]:
+		state = State.UPGRADE
+		get_tree().paused = true
+		show_overlay("CHOOSE YOUR UPGRADE", "Wave %d cleared. Pick one change for this run." % wave)
+		for index in 3:
+			var details: Array[String] = ["+%.0f%% of base fireball damage" % (upgrade_damage_bonus * 100), "%.0f%% shorter casting interval" % (upgrade_cast_reduction * 100), "+%d projectile(s) per cast" % upgrade_projectiles]
+			add_button(UPGRADE_TITLES[index] + "\n" + details[index], choose_upgrade.bind(index))
+	else:
+		state = State.BETWEEN_WAVES
+		break_clock = intermission
+
+func choose_upgrade(index: int) -> void:
+	if state != State.UPGRADE or index < 0 or index >= 3:
+		return
+	match index:
+		0: power_upgrades += 1
+		1: quick_upgrades += 1
+		2: fan_upgrades += 1
+	update_build()
+	upgrades_chosen += 1
+	state = State.BETWEEN_WAVES
+	break_clock = intermission
+	overlay.hide()
+	get_tree().paused = false
+	update_hud()
+
+func pause_run() -> void:
+	# Preserve the intermission as well as an active wave when resuming.
+	set_meta("resume_state", state)
+	state = State.PAUSED
+	get_tree().paused = true
+	show_overlay("TAKE A BREATH", "The arena can wait.")
+	add_button("Resume  [Esc]", resume_run)
+
+func resume_run() -> void:
+	if state != State.PAUSED:
+		return
+	state = get_meta("resume_state", State.FIGHTING)
+	get_tree().paused = false
+	overlay.hide()
+
+func finish_run(victory: bool) -> void:
+	if state == State.FINISHED:
+		return
+	state = State.FINISHED
+	result_victory = victory
+	reward_due = predicted_reward()
+	get_tree().paused = true
+	settle_reward()
+
+func predicted_reward() -> int:
+	return echoes_per_wave * completed_waves * (completed_waves + 1) / 2
+
+func settle_reward() -> void:
+	if state != State.FINISHED or reward_saved:
+		return
+	if not progress.available:
+		progress.load_progress()
+	reward_saved = progress.award(reward_due, best_wave)
+	show_overlay("THE EMBER ENDURES" if result_victory else "THE FLAME FADES", "Arena cleared!" if result_victory else "Every attempt teaches you something.")
+	overlay_text.text += "\nWave %d / %d   |   %d cleared   |   %d defeats   |   Best %d\nEchoes earned: %d   |   Total: %d\n%s" % [wave, total_waves, completed_waves, kills, best_wave, reward_due, progress.echoes, "Reward saved. Run items reset on your next attempt." if reward_saved else progress.message]
+	if reward_saved:
+		add_button("Start a new run", restart_run)
+	else:
+		add_button("Retry saving reward", settle_reward)
+
+func _cast(origin: Vector2, direction: Vector2, damage: float) -> void:
+	if state != State.FIGHTING:
+		return
+	var projectile = PROJECTILE.instantiate()
+	projectile.position = origin
+	projectile.direction = direction
+	projectile.damage = damage
+	projectile.speed = projectile_speed
+	projectile.lifetime = projectile_lifetime
+	projectile.impact.connect(projectile_impact)
+	projectiles.add_child(projectile)
+	shots_fired += 1
+
+func update_build() -> void:
+	player.damage = player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus)
+	player.cast_interval = player.base_cast_interval * pow(1.0 - upgrade_cast_reduction, quick_upgrades)
+	player.projectile_count = 1 + fan_upgrades * upgrade_projectiles
+	player.spread_angle = projectile_spread
+	player.health = minf(player.health, player.max_health)
+	player.health_changed.emit(player.health, player.max_health)
+
+func enemy_slain(at: Vector2) -> void:
+	kills += 1
+	if not codex_active and loot.get_child_count() == 0 and rng.randf() < drop_chance:
+		drop_codex(at)
+
+func drop_codex(at: Vector2) -> void:
+	if codex_active or loot.get_child_count() > 0 or state != State.FIGHTING:
+		return
+	var pickup = PICKUP.new()
+	pickup.position = at.clamp(BOUNDS.position + Vector2.ONE * 25, BOUNDS.end - Vector2.ONE * 25)
+	pickup.player = player
+	pickup.pickup_radius = pickup_radius
+	pickup.collected.connect(func(): codex_active = true; update_hud())
+	loot.add_child(pickup)
+	drops_created += 1
+
+func projectile_impact(at: Vector2, hit_damage: float, primary: Object) -> void:
+	shots_hit += 1
+	if not codex_active:
+		return
+	effects.append({"at": at, "amount": 0, "killed": false, "life": 0.5, "explosion": explosion_radius})
+	for enemy in enemies.get_children():
+		if enemy != primary and not enemy.dead and enemy.global_position.distance_to(at) <= explosion_radius:
+			enemy.take_damage(hit_damage * explosion_damage_ratio, at.direction_to(enemy.global_position))
+
+func show_hit(at: Vector2, amount: float, killed: bool) -> void:
+	damage_dealt += amount
+	effects.append({"at": at, "amount": amount, "killed": killed, "life": 0.5})
+
+func _health_changed(current: float, maximum: float) -> void:
+	damage_taken += maxf(0.0, last_health - current)
+	last_health = current
+	if health_bar == null:
+		return
+	health_bar.max_value = maximum
+	health_bar.value = current
+	health_label.text = "VITALITY   %d / %d" % [ceili(current), ceili(maximum)]
+
+func update_hud() -> void:
+	var status: String = "WAVE %02d / %02d" % [wave, total_waves]
+	if state == State.BETWEEN_WAVES:
+		status = "WAVE %02d IN %.1fs" % [wave + 1, maxf(break_clock, 0.0)]
+	hud.text = "%s     /     %d REMAINING     /     BEST %02d" % [status, remaining_to_spawn + enemies.get_child_count(), best_wave]
+	build_label.text = "FIREBALL   %.1f damage   /   %.2fs cast   /   %d projectile%s" % [player.damage, player.cast_interval, player.projectile_count, "s" if player.projectile_count != 1 else ""]
+	wallet_label.text = "ECHOES  %d   /   RUN REWARD  %d" % [progress.echoes, predicted_reward()]
+	loot_label.text = "CINDER CODEX: explosive impacts active (this run)" if codex_active else ("RARE DROP: collect the golden book!" if loot.get_child_count() > 0 else "RELIC: none   /   Rare items can drop from defeated enemies")
+
+func create_interface() -> void:
+	var layer := CanvasLayer.new()
+	add_child(layer)
+	var ui := Control.new()
+	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(ui)
+	var theme := Theme.new()
+	theme.default_font_size = 18
+	theme.set_color("font_color", "Label", Color("e9ddc7"))
+	ui.theme = theme
+	add_label(ui, "L O O T F A L L", Vector2(64, 25), 30, Color("edcca0"))
+	add_label(ui, "THE EMBER TRIAL   /   ARENA PROTOTYPE", Vector2(65, 66), 13, Color("9da6b3"))
+	hud = add_label(ui, "", Vector2(580, 53), 17, Color("e9ddc7"))
+	wallet_label = add_label(ui, "", Vector2(580, 80), 14, Color("ccac7b"))
+	loot_label = add_label(ui, "", Vector2(65, 99), 13, Color("d6b67b"))
+	health_label = add_label(ui, "", Vector2(65, 742), 15, Color("e9ddc7"))
+	health_bar = ProgressBar.new()
+	health_bar.position = Vector2(65, 768)
+	health_bar.size = Vector2(260, 9)
+	health_bar.show_percentage = false
+	var background := StyleBoxFlat.new()
+	background.bg_color = Color("302a32")
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color("bf7475")
+	health_bar.add_theme_stylebox_override("background", background)
+	health_bar.add_theme_stylebox_override("fill", fill)
+	ui.add_child(health_bar)
+	build_label = add_label(ui, "", Vector2(365, 744), 15, Color("d4c6ad"))
+	add_label(ui, "WASD  Move  /  MOUSE  Aim  /  HOLD LMB  Cast  /  ESC  Pause" + ("  /  F1  Dev console" if OS.is_debug_build() else ""), Vector2(365, 770), 13, Color("8995a5"))
+	var shade := ColorRect.new()
+	shade.color = Color(0.025, 0.035, 0.06, 0.88)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	shade.process_mode = Node.PROCESS_MODE_ALWAYS
+	ui.add_child(shade)
+	overlay = PanelContainer.new()
+	overlay.position = Vector2(155, 255)
+	overlay.size = Vector2(970, 290)
+	overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	var panel := StyleBoxFlat.new()
+	panel.bg_color = Color("1a2330")
+	panel.border_color = Color("927755")
+	panel.set_border_width_all(1)
+	panel.content_margin_left = 30
+	panel.content_margin_right = 30
+	panel.content_margin_top = 26
+	panel.content_margin_bottom = 26
+	overlay.add_theme_stylebox_override("panel", panel)
+	ui.add_child(overlay)
+	overlay.visibility_changed.connect(func(): shade.visible = overlay.visible)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 20)
+	overlay.add_child(column)
+	overlay_title = Label.new()
+	overlay_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	overlay_title.add_theme_font_size_override("font_size", 28)
+	column.add_child(overlay_title)
+	overlay_text = Label.new()
+	overlay_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	overlay_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	overlay_text.custom_minimum_size.x = 900
+	overlay_text.add_theme_font_size_override("font_size", 17)
+	column.add_child(overlay_text)
+	buttons = HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 14)
+	column.add_child(buttons)
+
+func add_label(parent: Node, text: String, at: Vector2, font_size: int, color: Color) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.position = at
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	parent.add_child(label)
+	return label
+
+func show_overlay(title: String, text: String) -> void:
+	for child in buttons.get_children():
+		buttons.remove_child(child)
+		child.queue_free()
+	overlay_title.text = title
+	overlay_text.text = text
+	overlay.show()
+
+func add_button(text: String, action: Callable) -> void:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(275, 70)
+	button.add_theme_font_size_override("font_size", 16)
+	button.pressed.connect(action)
+	buttons.add_child(button)
+	if buttons.get_child_count() == 1:
+		button.grab_focus()
+
+func _draw() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color("0e1520"))
+	draw_rect(BOUNDS.grow(10), Color("3c3c45"))
+	draw_rect(BOUNDS.grow(6), Color("746047"), false, 1)
+	draw_rect(BOUNDS, Color("202b37"))
+	for x in range(64, 1216, 64):
+		for y in range(128, 720, 48):
+			var offset: int = 32 if ((y - 128) / 48) % 2 == 0 else 0
+			draw_rect(Rect2(x + offset, y, 63, 47).intersection(BOUNDS), Color("293440"), false, 1)
+	var center: Vector2 = BOUNDS.get_center()
+	for radius in [86.0, 96.0, 205.0]:
+		draw_arc(center, radius, 0, TAU, 96, Color("3d464c"), 1.5)
+	for index in 12:
+		var point: Vector2 = center + Vector2.from_angle(index * TAU / 12) * 96
+		draw_line(point, center + (point - center) * 1.12, Color("73694f"), 2)
+	for corner in [Vector2(79, 143), Vector2(1201, 143), Vector2(79, 705), Vector2(1201, 705)]:
+		draw_circle(corner, 17, Color(0.85, 0.42, 0.18, 0.08))
+		draw_circle(corner, 8, Color("b37c49"))
+		draw_circle(corner, 3, Color("ffe0a0"))
+	for effect in effects:
+		var alpha: float = effect.life / 0.5
+		var color := Color("ffd291") if effect.killed else Color("f8e5c2")
+		color.a = alpha
+		var point: Vector2 = effect.at
+		if effect.has("explosion"):
+			draw_circle(point, effect.explosion * (1.0 - alpha), Color(1.0, 0.55, 0.2, alpha * 0.12))
+			draw_arc(point, effect.explosion * (1.0 - alpha), 0, TAU, 40, color, 2)
+			continue
+		draw_arc(point, 8 + (1 - alpha) * (30 if effect.killed else 12), 0, TAU, 16, color, 2)
+		draw_string(ThemeDB.fallback_font, point + Vector2(-9, -25 - (1 - alpha) * 25), str(ceili(effect.amount)), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
