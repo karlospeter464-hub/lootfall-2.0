@@ -30,6 +30,7 @@ func run() -> void:
 	game.set_process(false)
 	game.player.controls_enabled = false
 	game.drop_chance = 1.0
+	game.equipment_drop_chance = 0.0
 	game.begin_wave()
 	game.spawn_enemy()
 	var first = game.enemies.get_child(0)
@@ -45,9 +46,8 @@ func run() -> void:
 	check(game.loot.get_child_count() == 1, "A pending item prevents duplicate drops")
 	game.player.position = drop_position
 	await frames(3)
-	check(game.codex_active and game.loot.get_child_count() == 0, "Physical contact collects the item exactly once")
-	game.drop_codex(game.player.position)
-	check(game.loot.get_child_count() == 0, "An active Codex cannot stack")
+	check(not game.codex_active and game.bag.has("cinder_codex") and game.loot.get_child_count() == 0, "Physical contact collects into the bag without activating the effect")
+	check(game.equip_item(game.bag.find("cinder_codex")) and game.codex_active, "Equipping the collected Codex activates its effect")
 	game.spawn_enemy()
 	game.spawn_enemy()
 	var primary = game.enemies.get_child(0)
@@ -102,7 +102,7 @@ func run() -> void:
 	game.settle_reward()
 	check(game.progress.echoes == 60, "A save call during a run cannot pay out")
 	var dev = game.dev_console
-	check(dev.controls.size() == 28, "Every supported setting has a console control")
+	check(dev.controls.size() == 33, "Every supported setting has a console control")
 	var original_speed: float = game.player.move_speed
 	check(dev.apply_setting("player.move_speed", 350) and game.player.move_speed == 350, "Movement tuning reaches the real player")
 	check(not dev.apply_setting("arena.enemy_limit", -1), "Negative caps are rejected")

@@ -5,6 +5,8 @@ const PROJECTILE = preload("res://scenes/projectile.tscn")
 const PICKUP = preload("res://scripts/loot_pickup.gd")
 const PROGRESS = preload("res://scripts/progress_store.gd")
 const DEV_CONSOLE = preload("res://scripts/dev_console.gd")
+const CATALOG = preload("res://scripts/item_catalog.gd")
+const INVENTORY_PANEL = preload("res://scripts/inventory_panel.gd")
 const BOUNDS := Rect2(64, 128, 1152, 592)
 const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan"]
 
@@ -33,6 +35,11 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED }
 @export_range(20, 250, 5) var explosion_radius: float = 85.0
 @export_range(0, 3, 0.05) var explosion_damage_ratio: float = 0.6
 @export_range(0, 1000, 1) var echoes_per_wave: int = 10
+@export_range(0, 1, 0.01) var equipment_drop_chance: float = 0.1
+@export_range(1, 64, 1) var ground_loot_limit: int = 16
+@export_range(0, 2, 0.05) var scepter_damage_bonus: float = 0.3
+@export_range(0, 0.8, 0.05) var scepter_cast_reduction: float = 0.2
+@export_range(0, 2, 0.05) var focus_damage_bonus: float = 0.4
 
 @onready var player = $Player
 @onready var enemies: Node2D = $Enemies
@@ -60,7 +67,14 @@ var loot: Node2D
 var dev_console
 var progress = PROGRESS.new()
 var completed_waves: int = 0
-var codex_active: bool = false
+var codex_active: bool:
+	get: return equipment.book == "cinder_codex"
+var codex_spawned: bool = false
+var bag: Array[String] = ["", "", "", "", "", "", "", ""]
+var equipment: Dictionary = {"scepter": "", "book": ""}
+var inventory_panel
+var notice_label: Label
+var notice_timer: float = 0.0
 var reward_due: int = 0
 var reward_saved: bool = false
 var result_victory: bool = false
@@ -93,6 +107,9 @@ func _ready() -> void:
 	loot.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(loot)
 	create_interface()
+	inventory_panel = INVENTORY_PANEL.new()
+	inventory_panel.game = self
+	add_child(inventory_panel)
 	if OS.is_debug_build():
 		dev_console = DEV_CONSOLE.new()
 		dev_console.game = self
@@ -103,6 +120,9 @@ func _process(delta: float) -> void:
 	if get_tree().paused:
 		return
 	elapsed += delta
+	notice_timer = maxf(0.0, notice_timer - delta)
+	if notice_timer <= 0:
+		notice_label.text = ""
 	for effect in effects:
 		effect.life -= delta
 	effects = effects.filter(func(effect: Dictionary) -> bool: return effect.life > 0.0)
@@ -121,6 +141,8 @@ func _process(delta: float) -> void:
 	update_hud()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if is_instance_valid(inventory_panel) and inventory_panel.is_open:
+		return
 	if is_instance_valid(dev_console) and dev_console.is_open:
 		return
 	if event.is_action_pressed("pause") and not event.is_echo():
@@ -138,6 +160,8 @@ func restart_run() -> void:
 			return
 	if is_instance_valid(dev_console):
 		dev_console.close_console()
+	if is_instance_valid(inventory_panel):
+		inventory_panel.close_inventory()
 	get_tree().paused = false
 	for container in [enemies, projectiles, loot]:
 		for child in container.get_children():
@@ -148,7 +172,11 @@ func restart_run() -> void:
 	kills = 0
 	upgrades_chosen = 0
 	completed_waves = 0
-	codex_active = false
+	codex_spawned = false
+	bag.fill("")
+	equipment = {"scepter": "", "book": ""}
+	notice_timer = 0.0
+	notice_label.text = ""
 	reward_due = 0
 	reward_saved = false
 	power_upgrades = 0
@@ -255,6 +283,7 @@ func pause_run() -> void:
 	get_tree().paused = true
 	show_overlay("TAKE A BREATH", "The arena can wait.")
 	add_button("Resume  [Esc]", resume_run)
+	add_button("Equipment  [I]", inventory_panel.open_inventory)
 
 func resume_run() -> void:
 	if state != State.PAUSED:
@@ -266,6 +295,9 @@ func resume_run() -> void:
 func finish_run(victory: bool) -> void:
 	if state == State.FINISHED:
 		return
+	if is_instance_valid(dev_console):
+		dev_console.close_console()
+	inventory_panel.close_inventory()
 	state = State.FINISHED
 	result_victory = victory
 	reward_due = predicted_reward()
@@ -302,28 +334,110 @@ func _cast(origin: Vector2, direction: Vector2, damage: float) -> void:
 	shots_fired += 1
 
 func update_build() -> void:
-	player.damage = player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus)
-	player.cast_interval = player.base_cast_interval * pow(1.0 - upgrade_cast_reduction, quick_upgrades)
-	player.projectile_count = 1 + fan_upgrades * upgrade_projectiles
+	var build: Dictionary = build_for(equipment.scepter, equipment.book)
+	player.damage = build.damage
+	player.cast_interval = build.interval
+	player.projectile_count = build.projectiles
 	player.spread_angle = projectile_spread
 	player.health = minf(player.health, player.max_health)
 	player.health_changed.emit(player.health, player.max_health)
+	if is_instance_valid(inventory_panel) and inventory_panel.is_open:
+		inventory_panel.refresh()
+
+func build_for(scepter: String, book: String) -> Dictionary:
+	var gear_damage: float = (scepter_damage_bonus if scepter == "ember_scepter" else 0.0) + (focus_damage_bonus if book == "focus_grimoire" else 0.0)
+	var interval: float = player.base_cast_interval * pow(1.0 - upgrade_cast_reduction, quick_upgrades)
+	if scepter == "swift_scepter":
+		interval *= 1.0 - scepter_cast_reduction
+	return {"damage": player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus) * (1.0 + gear_damage), "interval": interval, "projectiles": 1 + fan_upgrades * upgrade_projectiles, "splash": book == "cinder_codex"}
+
+func bag_used() -> int:
+	return 8 - bag.count("")
+
+func accept_item(id: String) -> bool:
+	if state == State.FINISHED or not CATALOG.ITEMS.has(id):
+		return false
+	var empty: int = bag.find("")
+	if empty < 0:
+		return false
+	bag[empty] = id
+	show_notice("Found %s — in your bag, inactive. Press I to inspect and equip." % CATALOG.ITEMS[id].name)
+	update_hud()
+	return true
+
+func equip_item(index: int) -> bool:
+	if state == State.FINISHED or index < 0 or index >= bag.size() or not CATALOG.ITEMS.has(bag[index]):
+		return false
+	var id: String = bag[index]
+	var slot: String = CATALOG.ITEMS[id].slot
+	bag[index] = equipment[slot]
+	equipment[slot] = id
+	update_build()
+	update_hud()
+	return true
+
+func unequip_item(slot: String) -> bool:
+	if state == State.FINISHED or not equipment.has(slot) or equipment[slot].is_empty():
+		return false
+	var empty: int = bag.find("")
+	if empty < 0:
+		return false
+	bag[empty] = equipment[slot]
+	equipment[slot] = ""
+	update_build()
+	update_hud()
+	return true
+
+func drop_owned_item(index: int, slot: String) -> bool:
+	if state == State.FINISHED:
+		return false
+	var id: String = ""
+	if index >= 0 and index < bag.size():
+		id = bag[index]
+	elif index == -1 and equipment.has(slot):
+		id = equipment[slot]
+	var offset := Vector2(maxf(95, pickup_radius + 35), 0)
+	if player.position.x > BOUNDS.get_center().x:
+		offset.x = -offset.x
+	if not drop_item(id, player.position + offset):
+		return false
+	if index >= 0:
+		bag[index] = ""
+	else:
+		equipment[slot] = ""
+	update_build()
+	update_hud()
+	return true
+
+func show_notice(text: String) -> void:
+	notice_label.text = text
+	notice_timer = 6.0
 
 func enemy_slain(at: Vector2) -> void:
 	kills += 1
-	if not codex_active and loot.get_child_count() == 0 and rng.randf() < drop_chance:
+	if not codex_spawned and rng.randf() < drop_chance:
 		drop_codex(at)
+	elif rng.randf() < equipment_drop_chance:
+		var choices: Array[String] = ["ember_scepter", "swift_scepter", "focus_grimoire"]
+		drop_item(choices[rng.randi_range(0, choices.size() - 1)], at)
 
 func drop_codex(at: Vector2) -> void:
-	if codex_active or loot.get_child_count() > 0 or state != State.FIGHTING:
-		return
+	drop_item("cinder_codex", at)
+
+func drop_item(id: String, at: Vector2) -> bool:
+	if not CATALOG.ITEMS.has(id) or loot.get_child_count() >= ground_loot_limit or state == State.FINISHED:
+		return false
 	var pickup = PICKUP.new()
+	pickup.item_id = id
 	pickup.position = at.clamp(BOUNDS.position + Vector2.ONE * 25, BOUNDS.end - Vector2.ONE * 25)
 	pickup.player = player
 	pickup.pickup_radius = pickup_radius
-	pickup.collected.connect(func(): codex_active = true; update_hud())
+	pickup.collect = accept_item
 	loot.add_child(pickup)
 	drops_created += 1
+	if id == "cinder_codex":
+		codex_spawned = true
+	return true
 
 func projectile_impact(at: Vector2, hit_damage: float, primary: Object) -> void:
 	shots_hit += 1
@@ -354,7 +468,9 @@ func update_hud() -> void:
 	hud.text = "%s     /     %d REMAINING     /     BEST %02d" % [status, remaining_to_spawn + enemies.get_child_count(), best_wave]
 	build_label.text = "FIREBALL   %.1f damage   /   %.2fs cast   /   %d projectile%s" % [player.damage, player.cast_interval, player.projectile_count, "s" if player.projectile_count != 1 else ""]
 	wallet_label.text = "ECHOES  %d   /   RUN REWARD  %d" % [progress.echoes, predicted_reward()]
-	loot_label.text = "CINDER CODEX: explosive impacts active (this run)" if codex_active else ("RARE DROP: collect the golden book!" if loot.get_child_count() > 0 else "RELIC: none   /   Rare items can drop from defeated enemies")
+	var scepter_name: String = "Empty" if equipment.scepter.is_empty() else CATALOG.ITEMS[equipment.scepter].name
+	var book_name: String = "Empty" if equipment.book.is_empty() else CATALOG.ITEMS[equipment.book].name
+	loot_label.text = "SCEPTER: %s   /   BOOK: %s   /   BAG: %d/8   /   I: inspect & equip" % [scepter_name, book_name, bag_used()]
 
 func create_interface() -> void:
 	var layer := CanvasLayer.new()
@@ -372,6 +488,7 @@ func create_interface() -> void:
 	hud = add_label(ui, "", Vector2(580, 53), 17, Color("e9ddc7"))
 	wallet_label = add_label(ui, "", Vector2(580, 80), 14, Color("ccac7b"))
 	loot_label = add_label(ui, "", Vector2(65, 99), 13, Color("d6b67b"))
+	notice_label = add_label(ui, "", Vector2(80, 685), 15, Color("f0d39f"))
 	health_label = add_label(ui, "", Vector2(65, 742), 15, Color("e9ddc7"))
 	health_bar = ProgressBar.new()
 	health_bar.position = Vector2(65, 768)
@@ -385,7 +502,7 @@ func create_interface() -> void:
 	health_bar.add_theme_stylebox_override("fill", fill)
 	ui.add_child(health_bar)
 	build_label = add_label(ui, "", Vector2(365, 744), 15, Color("d4c6ad"))
-	add_label(ui, "WASD  Move  /  MOUSE  Aim  /  HOLD LMB  Cast  /  ESC  Pause" + ("  /  F1  Dev console" if OS.is_debug_build() else ""), Vector2(365, 770), 13, Color("8995a5"))
+	add_label(ui, "WASD Move / MOUSE Aim / LMB Cast / I Equipment / ESC Pause" + (" / F1 Dev" if OS.is_debug_build() else ""), Vector2(365, 770), 13, Color("8995a5"))
 	var shade := ColorRect.new()
 	shade.color = Color(0.025, 0.035, 0.06, 0.88)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

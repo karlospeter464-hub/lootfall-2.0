@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 const SAFE_JSON = preload("res://scripts/safe_json.gd")
+const ITEM_FIELDS := ["arena.equipment_drop_chance", "arena.ground_loot_limit", "arena.scepter_damage_bonus", "arena.scepter_cast_reduction", "arena.focus_damage_bonus"]
 
 # Group, target, property, label, minimum, maximum, step, application time.
 const FIELDS := [
@@ -28,6 +29,11 @@ const FIELDS := [
 	["Combat & loot", "arena", "upgrade_cast_reduction", "Quick card: interval reduction", 0, 0.8, 0.01, "Live; 0.2 = 20% per chosen card"],
 	["Combat & loot", "arena", "upgrade_projectiles", "Fan card: extra projectiles", 1, 3, 1, "Live; aimed shot preserved"],
 	["Combat & loot", "arena", "drop_chance", "Codex drop chance (0..1)", 0, 1, 0.005, "Next kill; at most one Codex per run"],
+	["Combat & loot", "arena", "equipment_drop_chance", "Other gear drop chance (0..1)", 0, 1, 0.01, "Next kill without a Codex drop; one of three items"],
+	["Combat & loot", "arena", "ground_loot_limit", "Ground item cap", 1, 64, 1, "Live; existing items are kept"],
+	["Combat & loot", "arena", "scepter_damage_bonus", "Ember Scepter damage bonus", 0, 2, 0.05, "Live when equipped; additive with Focus bonus"],
+	["Combat & loot", "arena", "scepter_cast_reduction", "Swift Scepter interval reduction", 0, 0.8, 0.05, "Live when equipped; multiplies card interval"],
+	["Combat & loot", "arena", "focus_damage_bonus", "Focus Grimoire damage bonus", 0, 2, 0.05, "Live when equipped; replaces Codex splash"],
 	["Combat & loot", "arena", "pickup_radius", "Item pickup radius", 10, 100, 1, "Live"],
 	["Combat & loot", "arena", "explosion_radius", "Codex explosion radius", 20, 250, 5, "Next impact with Codex"],
 	["Combat & loot", "arena", "explosion_damage_ratio", "Codex splash / shot damage", 0, 3, 0.05, "Next impact; excludes the directly hit enemy"],
@@ -140,6 +146,16 @@ func _ready() -> void:
 		for enemy in game.enemies.get_children():
 			enemy.take_damage(enemy.health)
 	)
+	var item_row := HBoxContainer.new()
+	pages["Rewards & tools"].add_child(item_row)
+	var item_choice := OptionButton.new()
+	for id in game.CATALOG.ITEMS:
+		item_choice.add_item(game.CATALOG.ITEMS[id].name)
+	item_row.add_child(item_choice)
+	button(item_row, "Drop selected item", func():
+		var id: String = game.CATALOG.ITEMS.keys()[item_choice.selected]
+		status.text = "Item placed near the player; collect and equip it." if game.drop_item(id, game.player.position + Vector2(120, 0)) else "No item dropped: ground is full or the run has ended."
+	)
 	var seed_row := HBoxContainer.new()
 	pages["Rewards & tools"].add_child(seed_row)
 	var seed_input := SpinBox.new()
@@ -192,7 +208,9 @@ func close_console() -> void:
 	get_tree().paused = was_paused
 	# SpinBox edits must not keep keyboard focus after the console closes.
 	get_viewport().gui_release_focus()
-	if game.overlay.visible and game.buttons.get_child_count() > 0:
+	if game.inventory_panel.is_open:
+		game.inventory_panel.restore_focus()
+	elif game.overlay.visible and game.buttons.get_child_count() > 0:
 		game.buttons.get_child(0).grab_focus()
 
 func _process(delta: float) -> void:
@@ -208,6 +226,8 @@ func update_metrics() -> void:
 	for enemy in game.enemies.get_children():
 		total_hp += enemy.health
 	metrics.text = "FPS: %d   |   Frame: %.2f ms   |   Static memory: %.1f MiB\nState: %s   |   Active run time: %.1f s   |   Seed: %d\nWave: %d / %d   |   Cleared: %d   |   Best: %d\nEnemies: %d / %d cap   |   Still to spawn: %d   |   Active enemy HP: %.0f\nKills: %d   |   Projectiles alive: %d   |   Projectiles fired / hit: %d / %d\nDamage dealt: %.1f   |   Average run DPS: %.1f   |   Health lost: %.1f\nPlayer: %.0f / %.0f HP   |   Speed: %.0f   |   Protection left: %.2f s\nFireball: %.1f damage   |   %.3f s interval   |   %d projectiles\nCards: %d / 2   |   Power / Quick / Fan: %d / %d / %d\nCodex active: %s   |   Items on floor: %d   |   Drops this run: %d\nSplash: %.0f radius / %.0f%% damage   |   Drop chance: %.2f%%\nEchoes: %d saved   |   Current payout: %d   |   Saved progress available: %s" % [Engine.get_frames_per_second(), 1000.0 / maxf(Engine.get_frames_per_second(), 1), OS.get_static_memory_usage() / 1048576.0, game.State.keys()[game.state], game.elapsed, game.rng.seed, game.wave, game.total_waves, game.completed_waves, game.best_wave, game.enemies.get_child_count(), game.enemy_limit, game.remaining_to_spawn, total_hp, game.kills, game.projectiles.get_child_count(), game.shots_fired, game.shots_hit, game.damage_dealt, game.damage_dealt / maxf(game.elapsed, 0.001), game.damage_taken, game.player.health, game.player.max_health, game.player.move_speed, game.player.protection, game.player.damage, game.player.cast_interval, game.player.projectile_count, game.upgrades_chosen, game.power_upgrades, game.quick_upgrades, game.fan_upgrades, str(game.codex_active), game.loot.get_child_count(), game.drops_created, game.explosion_radius, game.explosion_damage_ratio * 100, game.drop_chance * 100, game.progress.echoes, game.predicted_reward(), str(game.progress.available)]
+
+	metrics.text += "\nBag: %d / 8   |   Scepter: %s   |   Book: %s" % [game.bag_used(), game.equipment.scepter, game.equipment.book]
 
 func valid_value(field: Array, value: Variant) -> bool:
 	if not (value is int or value is float) or not is_finite(float(value)):
@@ -252,28 +272,35 @@ func save_profile() -> bool:
 	for field in FIELDS:
 		var target: Object = game.player if field[1] == "player" else game
 		values[field[1] + "." + field[2]] = target.get(field[2])
-	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 1, "values": values})
+	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 2, "values": values})
 	status.text = "Profile saved: %s" % ProjectSettings.globalize_path(profile_path) if error == OK else "Profile not saved: %s" % error_string(error)
 	return error == OK
 
 func load_profile() -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(profile_path)
-	if data.get("version") != 1 or not data.get("values") is Dictionary:
+	if (data.get("version") != 1 and data.get("version") != 2) or not data.get("values") is Dictionary:
 		status.text = "Invalid or missing profile. Nothing changed."
 		return false
 	var values: Dictionary = data.values
-	if values.size() != FIELDS.size():
+	var legacy: bool = data.version == 1
+	if values.size() != FIELDS.size() - (ITEM_FIELDS.size() if legacy else 0):
 		status.text = "Profile has missing or unknown settings. Nothing changed."
 		return false
 	for field in FIELDS:
 		var key: String = field[1] + "." + field[2]
+		if legacy and key in ITEM_FIELDS:
+			if values.has(key):
+				status.text = "Unexpected legacy setting. Nothing changed."
+				return false
+			continue
 		if not valid_value(field, values.get(key)):
 			status.text = "Invalid profile setting: %s. Nothing changed." % key
 			return false
-	for key in values:
-		apply_setting(key, values[key])
+	for field in FIELDS:
+		var key: String = field[1] + "." + field[2]
+		apply_setting(key, values.get(key, defaults[key]))
 	sync_controls()
-	status.text = "Profile loaded. Test switches and progress are not part of profiles."
+	status.text = "Legacy profile loaded; new item settings use startup defaults." if legacy else "Profile loaded. Test switches and progress are not part of profiles."
 	return true
 
 func heal_player() -> void:

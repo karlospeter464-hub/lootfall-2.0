@@ -40,6 +40,13 @@ func capture() -> void:
 			game.finish_run(true)
 		elif argument == "--view=loot":
 			game.drop_codex(game.player.position + Vector2(130, 0))
+		elif argument == "--view=inventory":
+			for id in ["ember_scepter", "cinder_codex", "swift_scepter", "focus_grimoire"]:
+				game.accept_item(id)
+			game.equip_item(0)
+			game.equip_item(1)
+			game.inventory_panel.open_inventory()
+			game.inventory_panel.bag_buttons[3].grab_focus()
 		elif argument == "--view=console":
 			game.dev_console.open_console()
 		elif argument == "--view=tuning":
