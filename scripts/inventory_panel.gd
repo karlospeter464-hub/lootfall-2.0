@@ -121,7 +121,7 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func open_inventory() -> void:
-	if is_open or game.state == game.State.FINISHED or (is_instance_valid(game.dev_console) and game.dev_console.is_open):
+	if is_open or game.state in [game.State.FINISHED, game.State.TOWN] or (is_instance_valid(game.dev_console) and game.dev_console.is_open):
 		return
 	was_paused = get_tree().paused
 	previous_controls = game.player.controls_enabled
@@ -184,6 +184,8 @@ func refresh() -> void:
 		button.icon = game.CATALOG.icon(id)
 		button.set_pressed_no_signal(selected_slot == slot)
 	equipped_stats.text = "CURRENT BUILD\n\nDamage: %.1f\nCast interval: %.3fs\nProjectiles: %d\nSplash: %s" % [game.player.damage, game.player.cast_interval, game.player.projectile_count, "ON" if game.codex_active else "OFF"]
+	if game.player.haste_remaining > 0:
+		equipped_stats.text += "\nSecond Wind: %.1fs\nActive interval: %.3fs" % [game.player.haste_remaining, game.player.effective_interval()]
 	var selected: String = game.bag[selected_bag] if selected_bag >= 0 else game.equipment.get(selected_slot, "")
 	equip_button.disabled = selected.is_empty() or selected_bag < 0
 	unequip_button.disabled = selected.is_empty() or selected_slot.is_empty()

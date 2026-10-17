@@ -11,6 +11,7 @@ func capture() -> void:
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
+	game.restart_run()
 	game.set_process(false)
 	game.player.controls_enabled = false
 	game.rng.seed = 42
@@ -47,11 +48,24 @@ func capture() -> void:
 			game.equip_item(1)
 			game.inventory_panel.open_inventory()
 			game.inventory_panel.bag_buttons[3].grab_focus()
+		elif argument in ["--view=town", "--view=skilltree"]:
+			game.finish_run(false)
+			game.return_to_town()
+			game.progress.award(500, 3)
+			for id in ["power_1", "power_2", "vitality_3", "vitality_4"]:
+				game.buy_talent(id)
+			game.town_panel.refresh()
+			if argument == "--view=skilltree":
+				game.town_panel.show_tree()
+				game.town_panel.node_buttons["vitality_5"].grab_focus()
 		elif argument == "--view=console":
 			game.dev_console.open_console()
 		elif argument == "--view=tuning":
 			game.dev_console.open_console()
 			game.dev_console.tabs.current_tab = 4
+		elif argument == "--view=tree_tuning":
+			game.dev_console.open_console()
+			game.dev_console.tabs.current_tab = 6
 	if game.state in [game.State.UPGRADE, game.State.FINISHED]:
 		for container in [game.enemies, game.projectiles]:
 			for child in container.get_children():

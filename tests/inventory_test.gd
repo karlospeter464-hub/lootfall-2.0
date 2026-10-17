@@ -32,6 +32,7 @@ func run() -> void:
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
+	game.restart_run()
 	game.set_process(false)
 	var panel = game.inventory_panel
 	var dev = game.dev_console
@@ -115,11 +116,12 @@ func run() -> void:
 	check(game.loot.get_child_count() == 3 and game.loot.get_child(2).item_id != "cinder_codex", "A guaranteed other-gear roll creates a physical regular item")
 	check(dev.save_profile(), "The expanded profile can be saved")
 	var modern: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(modern.version == 2 and modern.values.size() == 33, "New profiles explicitly use version two with all settings")
+	check(modern.version == 3 and modern.values.size() == 48, "New profiles explicitly use version three with all settings")
 	var legacy: Dictionary = modern.duplicate(true)
 	legacy.version = 1
-	for field in dev.ITEM_FIELDS:
-		legacy.values.erase(field)
+	for field in dev.FIELDS:
+		if dev.field_version(field) > 1:
+			legacy.values.erase(field[1] + "." + field[2])
 	legacy.values["player.move_speed"] = 345
 	SAFE_JSON.write_object(dev.profile_path, legacy)
 	var legacy_loaded: bool = dev.load_profile()
@@ -128,7 +130,7 @@ func run() -> void:
 	legacy.values["unknown.item"] = 1
 	SAFE_JSON.write_object(dev.profile_path, legacy)
 	check(not dev.load_profile() and game.player.move_speed == 345, "Unknown legacy settings are rejected atomically")
-	modern.version = 3
+	modern.version = 4
 	SAFE_JSON.write_object(dev.profile_path, modern)
 	check(not dev.load_profile(), "Future profile versions are rejected")
 	panel.open_inventory()
@@ -139,7 +141,7 @@ func run() -> void:
 	panel.open_inventory()
 	check(not panel.is_open, "Equipment cannot reopen over the result screen")
 	var saved: Dictionary = SAFE_JSON.read_object(game.progress.path)
-	check(saved.size() == 3 and saved.version == 1 and not saved.has("equipment"), "Equipment does not change the persistent progress format")
+	check(saved.size() == 4 and saved.version == 2 and not saved.has("equipment"), "The new progress format saves talents without persisting equipment")
 	game.restart_run()
 	check(game.bag_used() == 0 and game.equipment.book == "" and game.equipment.scepter == "" and game.loot.get_child_count() == 0 and not game.codex_spawned, "Restart clears bag, gear, ground loot and natural Codex eligibility")
 	check(game.progress.echoes == 30 and game.player.damage == base and not paused, "Restart keeps Echoes and restores the base build")

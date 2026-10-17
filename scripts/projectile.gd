@@ -7,6 +7,7 @@ signal impact(at: Vector2, damage: float, primary: Object)
 
 var direction: Vector2 = Vector2.RIGHT
 var damage: float = 14.0
+var opening_bonus: float = 0.0
 var age: float = 0.0
 
 func _physics_process(delta: float) -> void:
@@ -18,7 +19,8 @@ func _physics_process(delta: float) -> void:
 	if not result.is_empty():
 		var body: Object = result.collider
 		if body.has_method("take_damage"):
-			body.call("take_damage", damage, direction)
+			var full_health: bool = body.get("health") != null and body.get("max_health") != null and is_equal_approx(float(body.get("health")), float(body.get("max_health")))
+			body.call("take_damage", damage * (1.0 + opening_bonus if full_health else 1.0), direction)
 		impact.emit(result.position, damage, body)
 		queue_free()
 		return

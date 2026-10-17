@@ -11,6 +11,10 @@ signal cast(origin: Vector2, direction: Vector2, damage: float)
 @export_range(0.1, 2.0, 0.05) var hit_protection: float = 0.7
 
 var health: float
+var health_limit: float
+var hurt_haste_ratio: float = 0.0
+var hurt_haste_duration: float = 3.0
+var haste_remaining: float = 0.0
 var damage: float
 var cast_interval: float
 var projectile_count: int
@@ -27,6 +31,8 @@ func _ready() -> void:
 
 func reset_run() -> void:
 	health = max_health
+	health_limit = max_health
+	haste_remaining = 0.0
 	damage = base_damage
 	cast_interval = base_cast_interval
 	projectile_count = 1
@@ -40,6 +46,7 @@ func reset_run() -> void:
 func _physics_process(delta: float) -> void:
 	cooldown = maxf(0.0, cooldown - delta)
 	protection = maxf(0.0, protection - delta)
+	haste_remaining = maxf(0.0, haste_remaining - delta)
 	if controls_enabled and health > 0.0:
 		velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * move_speed
 		move_and_slide()
@@ -51,10 +58,13 @@ func _physics_process(delta: float) -> void:
 			attack(aim)
 	queue_redraw()
 
+func effective_interval() -> float:
+	return cast_interval * (1.0 - hurt_haste_ratio if haste_remaining > 0 else 1.0)
+
 func attack(direction: Vector2) -> void:
 	if cooldown > 0.0 or health <= 0.0 or direction.is_zero_approx():
 		return
-	cooldown = cast_interval
+	cooldown = effective_interval()
 	for index in projectile_count:
 		# Preserve the aimed shot and alternate additional shots on either side.
 		var spread: float = 0.0
@@ -67,8 +77,10 @@ func take_damage(amount: float) -> void:
 	if amount <= 0.0 or protection > 0.0 or health <= 0.0 or (OS.is_debug_build() and invulnerable):
 		return
 	health = maxf(0.0, health - amount)
+	if hurt_haste_ratio > 0 and health > 0:
+		haste_remaining = hurt_haste_duration
 	protection = hit_protection
-	health_changed.emit(health, max_health)
+	health_changed.emit(health, health_limit)
 	if health <= 0.0:
 		defeated.emit()
 	queue_redraw()

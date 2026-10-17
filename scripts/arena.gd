@@ -7,10 +7,12 @@ const PROGRESS = preload("res://scripts/progress_store.gd")
 const DEV_CONSOLE = preload("res://scripts/dev_console.gd")
 const CATALOG = preload("res://scripts/item_catalog.gd")
 const INVENTORY_PANEL = preload("res://scripts/inventory_panel.gd")
+const TALENTS = preload("res://scripts/skill_tree.gd")
+const TOWN_PANEL = preload("res://scripts/town_panel.gd")
 const BOUNDS := Rect2(64, 128, 1152, 592)
 const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan"]
 
-enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED }
+enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN }
 
 @export_range(1, 50, 1) var first_wave_enemies: int = 8
 @export_range(0, 20, 1) var enemies_per_wave: int = 4
@@ -40,6 +42,21 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED }
 @export_range(0, 2, 0.05) var scepter_damage_bonus: float = 0.3
 @export_range(0, 0.8, 0.05) var scepter_cast_reduction: float = 0.2
 @export_range(0, 2, 0.05) var focus_damage_bonus: float = 0.4
+@export_range(1, 10000, 1) var tree_cost_1: int = 30
+@export_range(1, 10000, 1) var tree_cost_2: int = 45
+@export_range(1, 10000, 1) var tree_cost_3: int = 65
+@export_range(1, 10000, 1) var tree_cost_4: int = 90
+@export_range(1, 10000, 1) var tree_cost_5: int = 130
+@export_range(0, 0.5, 0.01) var tree_power_step: float = 0.04
+@export_range(0, 1, 0.01) var tree_power_notable: float = 0.08
+@export_range(0, 0.5, 0.01) var tree_health_step: float = 0.05
+@export_range(0, 1, 0.01) var tree_health_notable: float = 0.1
+@export_range(0, 0.15, 0.01) var tree_flow_step: float = 0.03
+@export_range(0, 0.15, 0.01) var tree_flow_notable: float = 0.05
+@export_range(0, 2, 0.05) var tree_opening_bonus: float = 0.35
+@export_range(0, 0.5, 0.01) var tree_wave_heal: float = 0.06
+@export_range(0, 0.8, 0.05) var tree_hurt_haste: float = 0.2
+@export_range(0.5, 10, 0.5) var tree_haste_duration: float = 3.0
 
 @onready var player = $Player
 @onready var enemies: Node2D = $Enemies
@@ -73,6 +90,9 @@ var codex_spawned: bool = false
 var bag: Array[String] = ["", "", "", "", "", "", "", ""]
 var equipment: Dictionary = {"scepter": "", "book": ""}
 var inventory_panel
+var town_panel
+var active_talents: Dictionary = {}
+var last_healed_wave: int = 0
 var notice_label: Label
 var notice_timer: float = 0.0
 var reward_due: int = 0
@@ -110,11 +130,15 @@ func _ready() -> void:
 	inventory_panel = INVENTORY_PANEL.new()
 	inventory_panel.game = self
 	add_child(inventory_panel)
+	town_panel = TOWN_PANEL.new()
+	town_panel.game = self
+	add_child(town_panel)
 	if OS.is_debug_build():
 		dev_console = DEV_CONSOLE.new()
 		dev_console.game = self
 		add_child(dev_console)
 	restart_run()
+	_show_town()
 
 func _process(delta: float) -> void:
 	if get_tree().paused:
@@ -193,12 +217,40 @@ func restart_run() -> void:
 	spawn_clock = 0.0
 	break_clock = 1.2
 	state = State.BETWEEN_WAVES
+	last_healed_wave = 0
+	active_talents = progress.talents.duplicate()
+	if is_instance_valid(town_panel):
+		town_panel.close_town()
 	player.position = BOUNDS.get_center()
 	player.reset_run()
 	update_build()
+	player.health = player.health_limit
+	player.health_changed.emit(player.health, player.health_limit)
 	player.controls_enabled = true
 	overlay.hide()
 	update_hud()
+
+func return_to_town() -> bool:
+	if state != State.FINISHED or not reward_saved:
+		return false
+	restart_run()
+	_show_town()
+	return true
+
+func _show_town() -> void:
+	state = State.TOWN
+	get_tree().paused = true
+	player.controls_enabled = false
+	town_panel.open_town()
+
+func talent_cost(id: String) -> int:
+	return int(get("tree_cost_%d" % TALENTS.NODES[id].tier)) if TALENTS.NODES.has(id) else 0
+
+func buy_talent(id: String) -> bool:
+	return state == State.TOWN and progress.buy(id, talent_cost(id))
+
+func refund_talents() -> bool:
+	return state == State.TOWN and progress.refund_all()
 
 func begin_wave() -> void:
 	wave += 1
@@ -248,6 +300,12 @@ func complete_wave() -> void:
 	if state != State.FIGHTING:
 		return
 	completed_waves = maxi(completed_waves, wave)
+	if last_healed_wave < wave:
+		last_healed_wave = wave
+		var perks: Dictionary = TALENTS.bonuses(active_talents, self)
+		if perks.healing > 0:
+			player.health = minf(player.health_limit, player.health + player.health_limit * perks.healing)
+			player.health_changed.emit(player.health, player.health_limit)
 	if wave >= total_waves:
 		finish_run(true)
 	elif wave in [2, 4]:
@@ -293,7 +351,7 @@ func resume_run() -> void:
 	overlay.hide()
 
 func finish_run(victory: bool) -> void:
-	if state == State.FINISHED:
+	if state in [State.FINISHED, State.TOWN]:
 		return
 	if is_instance_valid(dev_console):
 		dev_console.close_console()
@@ -316,7 +374,7 @@ func settle_reward() -> void:
 	show_overlay("THE EMBER ENDURES" if result_victory else "THE FLAME FADES", "Arena cleared!" if result_victory else "Every attempt teaches you something.")
 	overlay_text.text += "\nWave %d / %d   |   %d cleared   |   %d defeats   |   Best %d\nEchoes earned: %d   |   Total: %d\n%s" % [wave, total_waves, completed_waves, kills, best_wave, reward_due, progress.echoes, "Reward saved. Run items reset on your next attempt." if reward_saved else progress.message]
 	if reward_saved:
-		add_button("Start a new run", restart_run)
+		add_button("Return to Town", return_to_town)
 	else:
 		add_button("Retry saving reward", settle_reward)
 
@@ -327,6 +385,7 @@ func _cast(origin: Vector2, direction: Vector2, damage: float) -> void:
 	projectile.position = origin
 	projectile.direction = direction
 	projectile.damage = damage
+	projectile.opening_bonus = TALENTS.bonuses(active_talents, self).opening
 	projectile.speed = projectile_speed
 	projectile.lifetime = projectile_lifetime
 	projectile.impact.connect(projectile_impact)
@@ -339,23 +398,29 @@ func update_build() -> void:
 	player.cast_interval = build.interval
 	player.projectile_count = build.projectiles
 	player.spread_angle = projectile_spread
-	player.health = minf(player.health, player.max_health)
-	player.health_changed.emit(player.health, player.max_health)
+	var perks: Dictionary = TALENTS.bonuses(active_talents, self)
+	player.health_limit = player.max_health * (1.0 + perks.health)
+	player.hurt_haste_ratio = perks.haste
+	player.hurt_haste_duration = tree_haste_duration
+	player.health = minf(player.health, player.health_limit)
+	player.health_changed.emit(player.health, player.health_limit)
 	if is_instance_valid(inventory_panel) and inventory_panel.is_open:
 		inventory_panel.refresh()
 
 func build_for(scepter: String, book: String) -> Dictionary:
+	var perks: Dictionary = TALENTS.bonuses(active_talents, self)
 	var gear_damage: float = (scepter_damage_bonus if scepter == "ember_scepter" else 0.0) + (focus_damage_bonus if book == "focus_grimoire" else 0.0)
 	var interval: float = player.base_cast_interval * pow(1.0 - upgrade_cast_reduction, quick_upgrades)
 	if scepter == "swift_scepter":
 		interval *= 1.0 - scepter_cast_reduction
-	return {"damage": player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus) * (1.0 + gear_damage), "interval": interval, "projectiles": 1 + fan_upgrades * upgrade_projectiles, "splash": book == "cinder_codex"}
+	interval *= 1.0 - minf(0.6, perks.interval)
+	return {"damage": player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus) * (1.0 + gear_damage) * (1.0 + perks.damage), "interval": interval, "projectiles": 1 + fan_upgrades * upgrade_projectiles, "splash": book == "cinder_codex"}
 
 func bag_used() -> int:
 	return 8 - bag.count("")
 
 func accept_item(id: String) -> bool:
-	if state == State.FINISHED or not CATALOG.ITEMS.has(id):
+	if state in [State.FINISHED, State.TOWN] or not CATALOG.ITEMS.has(id):
 		return false
 	var empty: int = bag.find("")
 	if empty < 0:
@@ -366,7 +431,7 @@ func accept_item(id: String) -> bool:
 	return true
 
 func equip_item(index: int) -> bool:
-	if state == State.FINISHED or index < 0 or index >= bag.size() or not CATALOG.ITEMS.has(bag[index]):
+	if state in [State.FINISHED, State.TOWN] or index < 0 or index >= bag.size() or not CATALOG.ITEMS.has(bag[index]):
 		return false
 	var id: String = bag[index]
 	var slot: String = CATALOG.ITEMS[id].slot
@@ -377,7 +442,7 @@ func equip_item(index: int) -> bool:
 	return true
 
 func unequip_item(slot: String) -> bool:
-	if state == State.FINISHED or not equipment.has(slot) or equipment[slot].is_empty():
+	if state in [State.FINISHED, State.TOWN] or not equipment.has(slot) or equipment[slot].is_empty():
 		return false
 	var empty: int = bag.find("")
 	if empty < 0:
@@ -389,7 +454,7 @@ func unequip_item(slot: String) -> bool:
 	return true
 
 func drop_owned_item(index: int, slot: String) -> bool:
-	if state == State.FINISHED:
+	if state in [State.FINISHED, State.TOWN]:
 		return false
 	var id: String = ""
 	if index >= 0 and index < bag.size():
@@ -425,7 +490,7 @@ func drop_codex(at: Vector2) -> void:
 	drop_item("cinder_codex", at)
 
 func drop_item(id: String, at: Vector2) -> bool:
-	if not CATALOG.ITEMS.has(id) or loot.get_child_count() >= ground_loot_limit or state == State.FINISHED:
+	if not CATALOG.ITEMS.has(id) or loot.get_child_count() >= ground_loot_limit or state in [State.FINISHED, State.TOWN]:
 		return false
 	var pickup = PICKUP.new()
 	pickup.item_id = id
@@ -466,7 +531,7 @@ func update_hud() -> void:
 	if state == State.BETWEEN_WAVES:
 		status = "WAVE %02d IN %.1fs" % [wave + 1, maxf(break_clock, 0.0)]
 	hud.text = "%s     /     %d REMAINING     /     BEST %02d" % [status, remaining_to_spawn + enemies.get_child_count(), best_wave]
-	build_label.text = "FIREBALL   %.1f damage   /   %.2fs cast   /   %d projectile%s" % [player.damage, player.cast_interval, player.projectile_count, "s" if player.projectile_count != 1 else ""]
+	build_label.text = "FIREBALL   %.1f damage   /   %.2fs cast   /   %d projectile%s%s" % [player.damage, player.effective_interval(), player.projectile_count, "s" if player.projectile_count != 1 else "", "   /   SECOND WIND" if player.haste_remaining > 0 else ""]
 	wallet_label.text = "ECHOES  %d   /   RUN REWARD  %d" % [progress.echoes, predicted_reward()]
 	var scepter_name: String = "Empty" if equipment.scepter.is_empty() else CATALOG.ITEMS[equipment.scepter].name
 	var book_name: String = "Empty" if equipment.book.is_empty() else CATALOG.ITEMS[equipment.book].name

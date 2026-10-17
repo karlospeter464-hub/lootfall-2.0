@@ -27,7 +27,7 @@ func _draw() -> void:
 	draw_texture_rect(CATALOG.icon(item_id), Rect2(-18, -18, 36, 36), false)
 	if is_instance_valid(player) and global_position.distance_to(player.global_position) <= 160:
 		var left: float = clampf(global_position.x - 175, 75, 855) - global_position.x
-		var top: float = 43 if global_position.y < 210 else -66
-		draw_string(ThemeDB.fallback_font, Vector2(left, top), CATALOG.ITEMS[item_id].name + "  /  " + CATALOG.ITEMS[item_id].slot.capitalize(), HORIZONTAL_ALIGNMENT_CENTER, 350, 15, color)
-		draw_string(ThemeDB.fallback_font, Vector2(left, top + 19), CATALOG.ITEMS[item_id].brief, HORIZONTAL_ALIGNMENT_CENTER, 350, 14, Color("eee4d1"))
-		draw_string(ThemeDB.fallback_font, Vector2(left, top + 38), "BAG FULL — make room with I" if blocked else "Walk over to collect. I: inspect and equip.", HORIZONTAL_ALIGNMENT_CENTER, 350, 13, Color("b9c5d3"))
+		var top: float = 43 if global_position.y < 210 else -38
+		draw_string(ThemeDB.fallback_font, Vector2(left, top), CATALOG.ITEMS[item_id].name, HORIZONTAL_ALIGNMENT_CENTER, 350, 15, color)
+		if blocked:
+			draw_string(ThemeDB.fallback_font, Vector2(left, top + 19), "BAG FULL — make room with I", HORIZONTAL_ALIGNMENT_CENTER, 350, 13, Color("b9c5d3"))

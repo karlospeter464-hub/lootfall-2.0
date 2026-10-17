@@ -25,6 +25,7 @@ func run() -> void:
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
+	game.restart_run()
 	game.set_process(false)
 	game.player.controls_enabled = false
 	check(game.player.health == game.player.max_health, "A run starts with full health")
@@ -143,6 +144,8 @@ func run() -> void:
 	game.player.take_damage(game.player.max_health)
 	check(game.state == game.State.FINISHED and paused, "Lethal damage ends the run")
 	game.buttons.get_child(0).pressed.emit()
+	check(paused and game.state == game.State.TOWN, "The result button returns to town")
+	game.town_panel.start_button.pressed.emit()
 	check(not paused and game.player.health == game.player.max_health, "The result button starts a healthy new run")
 	game.pause_run()
 	game.resume_run()
