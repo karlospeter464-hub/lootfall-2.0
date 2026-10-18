@@ -19,6 +19,7 @@ var notice: Label
 var equip_button: Button
 var unequip_button: Button
 var drop_button: Button
+var destroy_button: Button
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -105,6 +106,8 @@ func _ready() -> void:
 	equip_button = action_button(actions, "Equip selected", equip_selected)
 	unequip_button = action_button(actions, "Unequip selected", unequip_selected)
 	drop_button = action_button(actions, "Put on the ground", drop_selected)
+	destroy_button = action_button(actions, "Destroy selected", destroy_selected)
+	destroy_button.tooltip_text = "Removes this bag item for the current run. No Echoes or other reward. Equipped items must be unequipped first."
 	action_button(actions, "Close  [I / Esc]", close_inventory)
 	screen.hide()
 
@@ -190,6 +193,7 @@ func refresh() -> void:
 	equip_button.disabled = selected.is_empty() or selected_bag < 0
 	unequip_button.disabled = selected.is_empty() or selected_slot.is_empty()
 	drop_button.disabled = selected.is_empty()
+	destroy_button.disabled = selected.is_empty() or selected_bag < 0
 	if selected.is_empty():
 		title.text = "Choose an item"
 		item_type.text = "Picking up is not equipping."
@@ -222,6 +226,11 @@ func drop_selected() -> void:
 	notice.text = "Placed nearby. Close this window and move to collect it again." if success else "Ground loot is full. Your item has been kept."
 	refresh()
 
+func destroy_selected() -> void:
+	if game.destroy_bag_item(selected_bag):
+		notice.text = "Item destroyed. One bag field is now free."
+	refresh()
+
 func label(parent: Node, text: String, font_size: int, color: Color = Color("e7e0d6")) -> Label:
 	var control := Label.new()
 	control.text = text
@@ -233,7 +242,7 @@ func label(parent: Node, text: String, font_size: int, color: Color = Color("e7e
 func action_button(parent: Node, text: String, action: Callable) -> Button:
 	var control := Button.new()
 	control.text = text
-	control.custom_minimum_size = Vector2(235, 42)
+	control.custom_minimum_size = Vector2(210, 42)
 	control.pressed.connect(action)
 	parent.add_child(control)
 	return control

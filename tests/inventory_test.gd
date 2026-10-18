@@ -116,7 +116,7 @@ func run() -> void:
 	check(game.loot.get_child_count() == 3 and game.loot.get_child(2).item_id != "cinder_codex", "A guaranteed other-gear roll creates a physical regular item")
 	check(dev.save_profile(), "The expanded profile can be saved")
 	var modern: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(modern.version == 3 and modern.values.size() == 48, "New profiles explicitly use version three with all settings")
+	check(modern.version == 4 and modern.values.size() == 52, "New profiles explicitly use version four with all settings")
 	var legacy: Dictionary = modern.duplicate(true)
 	legacy.version = 1
 	for field in dev.FIELDS:
@@ -130,7 +130,7 @@ func run() -> void:
 	legacy.values["unknown.item"] = 1
 	SAFE_JSON.write_object(dev.profile_path, legacy)
 	check(not dev.load_profile() and game.player.move_speed == 345, "Unknown legacy settings are rejected atomically")
-	modern.version = 4
+	modern.version = 5
 	SAFE_JSON.write_object(dev.profile_path, modern)
 	check(not dev.load_profile(), "Future profile versions are rejected")
 	panel.open_inventory()

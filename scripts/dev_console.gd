@@ -22,6 +22,10 @@ const FIELDS := [
 	["Enemies", "arena", "enemy_speed", "Base enemy speed", 10, 300, 5, "New enemies"],
 	["Enemies", "arena", "enemy_speed_growth", "Speed growth / wave", 0, 30, 1, "New enemies"],
 	["Enemies", "arena", "enemy_damage", "Contact damage", 1, 100, 1, "New enemies"],
+	["Enemies", "arena", "ranged_limit", "Active seer cap", 0, 6, 1, "New spawns from wave 2; 0 disables seers"],
+	["Enemies", "arena", "ranged_windup", "Seer warning duration (s)", 0.4, 3, 0.1, "New seers; target position is locked"],
+	["Enemies", "arena", "ranged_interval", "Seer recovery (s)", 0.5, 6, 0.1, "New seers"],
+	["Enemies", "arena", "ranged_radius", "Seer impact radius", 20, 100, 1, "New seers; leave the marked circle"],
 	["Combat & loot", "arena", "projectile_speed", "Projectile speed", 100, 1500, 25, "New projectiles"],
 	["Combat & loot", "arena", "projectile_lifetime", "Projectile lifetime (s)", 0.1, 5, 0.1, "New projectiles"],
 	["Combat & loot", "arena", "projectile_spread", "Side-shot spread (radians)", 0, 0.6, 0.01, "Next cast"],
@@ -292,13 +296,13 @@ func save_profile() -> bool:
 	for field in FIELDS:
 		var target: Object = game.player if field[1] == "player" else game
 		values[field[1] + "." + field[2]] = target.get(field[2])
-	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 3, "values": values})
+	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 4, "values": values})
 	status.text = "Profile saved: %s" % ProjectSettings.globalize_path(profile_path) if error == OK else "Profile not saved: %s" % error_string(error)
 	return error == OK
 
 func load_profile() -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(profile_path)
-	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3) or not data.get("values") is Dictionary:
+	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4) or not data.get("values") is Dictionary:
 		status.text = "Invalid or missing profile. Nothing changed."
 		return false
 	var values: Dictionary = data.values
@@ -324,10 +328,12 @@ func load_profile() -> bool:
 		var key: String = field[1] + "." + field[2]
 		apply_setting(key, values.get(key, defaults[key]))
 	sync_controls()
-	status.text = "Legacy profile loaded; newer settings use startup defaults." if version < 3 else "Profile loaded. Test switches and progress are not part of profiles."
+	status.text = "Legacy profile loaded; newer settings use startup defaults." if version < 4 else "Profile loaded. Test switches and progress are not part of profiles."
 	return true
 
 func field_version(field: Array) -> int:
+	if field[2].begins_with("ranged_"):
+		return 4
 	if field[2].begins_with("tree_"):
 		return 3
 	return 2 if field[1] + "." + field[2] in ITEM_FIELDS else 1

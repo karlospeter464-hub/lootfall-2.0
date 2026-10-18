@@ -15,12 +15,19 @@ func capture() -> void:
 	game.set_process(false)
 	game.player.controls_enabled = false
 	game.rng.seed = 42
+	if OS.get_cmdline_user_args().has("--view=encounter"):
+		game.wave = 1
 	game.begin_wave()
 	for index in 8:
 		game.spawn_enemy()
 		var enemy = game.enemies.get_child(index)
 		enemy.position = Vector2(250 + index * 115, 240 + (index % 3) * 130)
 		enemy.set_physics_process(false)
+		if enemy.get_script() == game.RANGED_ENEMY:
+			enemy.charging = true
+			enemy.charge_left = 0.6
+			enemy.marked_position = game.player.position + Vector2(80, 70)
+			enemy.queue_redraw()
 	game._cast(game.player.position + Vector2(80, 0), Vector2.RIGHT, 14)
 	game.projectiles.get_child(0).set_physics_process(false)
 	game.update_hud()

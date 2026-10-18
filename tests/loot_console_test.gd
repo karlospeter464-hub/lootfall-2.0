@@ -103,7 +103,7 @@ func run() -> void:
 	game.settle_reward()
 	check(game.progress.echoes == 60, "A save call during a run cannot pay out")
 	var dev = game.dev_console
-	check(dev.controls.size() == 48, "Every supported setting has a console control")
+	check(dev.controls.size() == 52, "Every supported setting has a console control")
 	var original_speed: float = game.player.move_speed
 	check(dev.apply_setting("player.move_speed", 350) and game.player.move_speed == 350, "Movement tuning reaches the real player")
 	check(not dev.apply_setting("arena.enemy_limit", -1), "Negative caps are rejected")

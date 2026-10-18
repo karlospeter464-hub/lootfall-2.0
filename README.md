@@ -20,6 +20,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 ## Play
 
+- From wave 2, **Cinder Seers** join the melee enemies: a blue diamond silhouette keeps its distance and marks a fixed ground position in pink. Leave the circle during the 1.1-second warning, or defeat the seer before its attack resolves. The position does not track you after marking. Default recovery is 2.8 seconds, impact radius 38, and damage uses the enemy damage value. Inventory/pause/freeze stop the warning. At most two seers are active; the overall default cap is now 12. Every fourth spawn from wave 2 is a seer when its cap permits; wave budgets and card events are unchanged.
 - **WASD:** move. **Mouse:** aim. **Hold left mouse button:** cast fireballs. **I:** equipment. **Escape:** close the current window or pause/resume. The pause menu also has an Equipment button.
 - Clear six waves by default. After waves 2 and 4, choose one of three cards. These choices remain wave-based.
 - Walk over loot to put it in your **eight-field bag**. Picking up does not activate an item. **I** pauses combat and shows item descriptions, current equipment and a before/after comparison. Select a bag item and **Equip selected** to swap its matching **scepter/book** slot. Unequip returns it to the bag. Put on the ground keeps it nearby; a full bag leaves ground loot available, and a full ground cap refuses a drop without deleting your item.
@@ -28,18 +29,19 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 - Death or clearing the final wave opens the result screen and awards **Echoes for completed waves**. Default: `10 * cleared * (cleared + 1) / 2`, so clearing 1/2/3/6 waves earns 10/30/60/210 Echoes. Dying during wave 4 pays for the first three cleared waves. Entering a wave alone earns nothing.
 - Echoes and best reached wave are saved at run end. Restart retains them but clears the cards, bag, equipment, ground loot, enemies, projectiles and run counters. Closing the app mid-run does not pay the unfinished run. Items are not persisted.
 - Ground items show their name; full-bag feedback remains visible. Detailed effects stay in the paused inventory. Permanent items, procedural affixes, XP progression and new classes remain outside this package.
+- **Destroy selected** removes a selected bag item and frees its field immediately. It produces no ground item or reward. Equipped items must be unequipped first. Put on the ground remains available; no automatic duplicate deletion is active. Rarity cascades are requested but still pending the probability basis and item-quality decision.
 
 ## F1 developer console (debug builds only)
 
 **F1** opens/closes the console; **Escape** closes it. Gameplay pauses while it is open. Closing preserves an existing pause, upgrade choice or result screen. SpinBox fields accept keyboard entry and arrow controls; each field shows when it applies.
 
-48 settings are split into tabs:
+52 settings are split into tabs:
 
 | Tab | Adjustable values |
 | --- | --- |
 | Player | Movement, maximum health, base damage, cast interval, hit protection |
 | Waves | Wave limit, first-wave enemies, enemies added per wave, active enemy cap, spawn interval, safe spawn distance, intermission |
-| Enemies | Base health/speed/damage, health/speed growth per wave |
+| Enemies | Base health/speed/damage, health/speed growth per wave, seer cap/warning/recovery/impact radius |
 | Combat & loot | Projectile speed/lifetime/spread, all three card strengths, Codex and other-gear drop chances, pickup radius, ground cap, all four item effects |
 | Rewards & tools | Echoes per cleared-wave tier; invulnerability, freeze enemies, restore HP, force a physical Codex or selected item drop, defeat active enemies, apply RNG seed |
 | Skill tree | Five tier prices, small/notable bonuses for all paths, First Spark, Renewal and Second Wind values/duration |
@@ -50,7 +52,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 **Save profile / Load profile:** Balancing values are saved separately from game progress. Profiles load manually; restarting the application restores Inspector defaults until you load your profile. Loading validates every value and known key before applying any of them. Profiles do not contain currency, current health, items, RNG state or test switches.
 
-New profiles use version 3 with 48 settings. Version 1 (28 original values) and version 2 (33 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. Tree effect tuning affects active talents live; ownership changes apply next run. Prices affect new purchases, not refunds. Defaults never erase owned talents or paid prices.
+New profiles use version 4 with 52 settings. Versions 1/2/3 (28/33/48 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. Tree effect tuning affects active talents live; ownership changes apply next run. Prices affect new purchases, not refunds. Defaults never erase owned talents or paid prices. Seer values affect new spawns; a zero seer cap disables new seers without deleting existing enemies. Old profiles can restore their previous overall enemy cap.
 
 **Reset defaults:** Restores the Inspector values captured at startup and clears invulnerability/freeze. It does not refill HP, remove chosen cards or erase saved currency. Invulnerability and freeze also reset on a new run; balancing values stay until reset/reload/application restart.
 
@@ -73,12 +75,13 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 & $godotExe --headless --path . --script res://tests/loot_console_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/inventory_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/town_tree_test.gd -- --test-mode
+& $godotExe --headless --path . --script res://tests/encounter_test.gd -- --test-mode
 & $godotExe --headless --path . --quit-after 120 -- --test-mode
 ```
 
 The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-P2 verification: 59 arena + 54 loot/console + 46 inventory + 69 town/tree = **228 checks, no failures** on Godot 4.7.2. The town/tree suite also passed with native D3D12 rendering, including a simulated viewport mouse purchase. Nine gameplay scripts passed Godot MCP `script_check`. Four staged native previews were inspected. These are automated checks, not human balance acceptance.
+Current verification: 59 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal = **247 checks, no failures** on Godot 4.7.2. Four changed gameplay scripts and the new test passed Godot MCP `script_check`; two new native D3D12 previews were inspected. Earlier P2 town/tree checks also passed with native rendering and a simulated mouse purchase. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 
@@ -86,13 +89,15 @@ For staged engine previews:
 & $godotExe --path . --script res://tests/capture_preview.gd -- --test-mode --view=loot --output=C:/path/to/preview.png
 ```
 
-Views: `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases. These are reproducible test arrangements, not human playthroughs.
+Views: `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles. These are reproducible test arrangements, not human playthroughs.
 
 ## Manual acceptance
 
 Play a full run; use F1 → Rewards & tools → choose an item → Drop selected item, collect it, then press I. Explain its effect before equipping; compare both books and both scepters, swap with a full bag and put an item down. Check actual equipped effects, both wave cards, death/victory payouts, new-run item reset and saved currency after restarting the app. Open F1 over equipment, an existing pause, a card choice and the result. Try a profile save/reset/load and another window size. Human readability, balance and release export remain open.
 
 For P2: finish a run → Return to Town → buy a connected talent → Start Run and notice its effect. Close/reopen the application to confirm the purchase. Try a cross-link, all three key effects, and Reset all after editing costs in F1. Default full-tree bonuses are +20% damage, +25% max HP and 14% shorter interval plus the three key effects; difficulty and earning pace still need human playtesting.
+
+For encounters: reach wave 2, prioritize seers or move out of their marked circles while melee enemies pursue you. Check whether this changes your target and movement choices with fewer enemies. Fill your bag, destroy an unwanted bag item and collect the waiting ground drop. Human warning readability, mixed-wave difficulty and the best long-term disposal/rarity rules remain open.
 
 Development documentation: `C:/Users/elias/OneDrive/Dokumente/ChatGPT/Lootfall 2.0`. Game source: `C:/Users/elias/Lootfall 2.0/lootfall-2.0`.
 

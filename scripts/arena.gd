@@ -1,6 +1,7 @@
 extends Node2D
 
 const ENEMY = preload("res://scenes/enemy.tscn")
+const RANGED_ENEMY = preload("res://scripts/ranged_enemy.gd")
 const PROJECTILE = preload("res://scenes/projectile.tscn")
 const PICKUP = preload("res://scripts/loot_pickup.gd")
 const PROGRESS = preload("res://scripts/progress_store.gd")
@@ -16,7 +17,11 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN }
 
 @export_range(1, 50, 1) var first_wave_enemies: int = 8
 @export_range(0, 20, 1) var enemies_per_wave: int = 4
-@export_range(1, 100, 1) var enemy_limit: int = 18
+@export_range(1, 100, 1) var enemy_limit: int = 12
+@export_range(0, 6, 1) var ranged_limit: int = 2
+@export_range(0.4, 3, 0.1) var ranged_windup: float = 1.1
+@export_range(0.5, 6, 0.1) var ranged_interval: float = 2.8
+@export_range(20, 100, 1) var ranged_radius: float = 38.0
 @export_range(0.1, 3.0, 0.05) var spawn_interval: float = 0.65
 @export_range(100, 600, 10) var safe_spawn_distance: float = 260.0
 @export_range(10, 300, 5) var enemy_speed: float = 85.0
@@ -284,6 +289,16 @@ func spawn_enemy() -> void:
 			spawn_at = candidate
 			break
 	var enemy = ENEMY.instantiate()
+	var spawned_this_wave: int = first_wave_enemies + (wave - 1) * enemies_per_wave - remaining_to_spawn
+	var ranged_alive: int = 0
+	for current in enemies.get_children():
+		if current.get_script() == RANGED_ENEMY and not current.dead:
+			ranged_alive += 1
+	if wave >= 2 and spawned_this_wave % 4 == 3 and ranged_alive < ranged_limit:
+		enemy.set_script(RANGED_ENEMY)
+		enemy.windup = ranged_windup
+		enemy.attack_interval = ranged_interval
+		enemy.attack_radius = ranged_radius
 	enemy.position = spawn_at
 	enemy.target = player
 	enemy.bounds = BOUNDS
@@ -477,6 +492,13 @@ func drop_owned_item(index: int, slot: String) -> bool:
 func show_notice(text: String) -> void:
 	notice_label.text = text
 	notice_timer = 6.0
+
+func destroy_bag_item(index: int) -> bool:
+	if state in [State.TOWN, State.FINISHED] or index < 0 or index >= bag.size() or bag[index].is_empty():
+		return false
+	bag[index] = ""
+	update_hud()
+	return true
 
 func enemy_slain(at: Vector2) -> void:
 	kills += 1
