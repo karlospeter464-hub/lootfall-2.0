@@ -138,6 +138,8 @@ Playtest questions: Does breaking concentration feel intentional? Can slow fire 
 
 ## Local version control
 
+Public GitHub repositories, explicitly authorized by the owner on 2026-10-18: [game](https://github.com/karlospeter464-hub/lootfall-2.0) and [development chronicle](https://github.com/karlospeter464-hub/lootfall-2.0-devlog). The local game and chronicle remain separate repositories. Machine-specific settings, credentials, caches and real save files stay excluded. Publishing a future change still requires the applicable user authorization.
+
 This game directory is versioned separately from the development chronicle at `C:/Users/elias/OneDrive/Dokumente/ChatGPT/Lootfall 2.0`. This preserves the existing open-editor and MCP paths. Game commits include scripts, scenes, tests, project settings and the active Godot MCP Toolkit with its license. Caches, save files, machine-specific MCP settings and the inactive Godot AI addon are excluded without deleting local files.
 
 After a tested feature, commit the selected game changes, then record that game commit in the chronicle alongside its screenshots and documentation and commit those there. No remote publishing is implied by a local commit.
