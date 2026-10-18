@@ -43,6 +43,8 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN }
 @export_range(0, 3, 0.05) var explosion_damage_ratio: float = 0.6
 @export_range(0, 1000, 1) var echoes_per_wave: int = 10
 @export_range(0, 1, 0.01) var equipment_drop_chance: float = 0.1
+@export_range(0, 1, 0.01) var rare_chance: float = 0.25
+@export_range(0, 1, 0.01) var magic_chance: float = 0.5
 @export_range(1, 64, 1) var ground_loot_limit: int = 16
 @export_range(0, 2, 0.05) var scepter_damage_bonus: float = 0.3
 @export_range(0, 0.8, 0.05) var scepter_cast_reduction: float = 0.2
@@ -441,7 +443,7 @@ func accept_item(id: String) -> bool:
 	if empty < 0:
 		return false
 	bag[empty] = id
-	show_notice("Found %s — in your bag, inactive. Press I to inspect and equip." % CATALOG.ITEMS[id].name)
+	show_notice("Found %s %s — in your bag, inactive. Press I to inspect and equip." % [CATALOG.label(id), CATALOG.ITEMS[id].name])
 	update_hud()
 	return true
 
@@ -502,11 +504,15 @@ func destroy_bag_item(index: int) -> bool:
 
 func enemy_slain(at: Vector2) -> void:
 	kills += 1
-	if not codex_spawned and rng.randf() < drop_chance:
-		drop_codex(at)
-	elif rng.randf() < equipment_drop_chance:
-		var choices: Array[String] = ["ember_scepter", "swift_scepter", "focus_grimoire"]
-		drop_item(choices[rng.randi_range(0, choices.size() - 1)], at)
+	if loot.get_child_count() >= ground_loot_limit or state != State.FIGHTING or (rng.randf() >= equipment_drop_chance and equipment_drop_chance < 1.0):
+		return
+	var id: String = CATALOG.roll_item(rng, drop_chance, rare_chance, magic_chance, not codex_spawned)
+	drop_item(id, at)
+
+func rarity_rates() -> Dictionary:
+	# shortcut: Codex is the only Legendary; derive eligibility from pools when adding another.
+	var legendary: float = drop_chance if not codex_spawned else 0.0
+	return {"legendary": legendary, "rare": (1.0 - legendary) * rare_chance, "magic": (1.0 - legendary) * (1.0 - rare_chance) * magic_chance, "normal": (1.0 - legendary) * (1.0 - rare_chance) * (1.0 - magic_chance)}
 
 func drop_codex(at: Vector2) -> void:
 	drop_item("cinder_codex", at)

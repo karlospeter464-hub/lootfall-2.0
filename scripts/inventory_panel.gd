@@ -178,6 +178,7 @@ func refresh() -> void:
 		var button: Button = bag_buttons[index]
 		button.text = "%02d\nEmpty" % (index + 1) if id.is_empty() else game.CATALOG.ITEMS[id].name.replace(" ", "\n")
 		button.icon = game.CATALOG.icon(id)
+		button.add_theme_color_override("font_color", Color("aab7c6") if id.is_empty() else game.CATALOG.color(id))
 		button.set_pressed_no_signal(selected_bag == index)
 		button.tooltip_text = "Empty bag field" if id.is_empty() else game.CATALOG.ITEMS[id].name + "\n" + game.CATALOG.description(id, game)
 	for slot in slot_buttons:
@@ -185,6 +186,7 @@ func refresh() -> void:
 		var button: Button = slot_buttons[slot]
 		button.text = slot.to_upper() + "\n" + ("Empty" if id.is_empty() else game.CATALOG.ITEMS[id].name)
 		button.icon = game.CATALOG.icon(id)
+		button.add_theme_color_override("font_color", Color("aab7c6") if id.is_empty() else game.CATALOG.color(id))
 		button.set_pressed_no_signal(selected_slot == slot)
 	equipped_stats.text = "CURRENT BUILD\n\nDamage: %.1f\nCast interval: %.3fs\nProjectiles: %d\nSplash: %s" % [game.player.damage, game.player.cast_interval, game.player.projectile_count, "ON" if game.codex_active else "OFF"]
 	if game.player.haste_remaining > 0:
@@ -202,7 +204,8 @@ func refresh() -> void:
 		return
 	var item: Dictionary = game.CATALOG.ITEMS[selected]
 	title.text = item.name
-	item_type.text = "%s  /  %s  /  THIS RUN ONLY" % [item.slot.to_upper(), "IN BAG — INACTIVE" if selected_bag >= 0 else "EQUIPPED — ACTIVE"]
+	title.add_theme_color_override("font_color", game.CATALOG.color(selected))
+	item_type.text = "%s  /  %s\n%s  /  THIS RUN ONLY" % [game.CATALOG.label(selected).to_upper(), item.slot.to_upper(), "IN BAG — INACTIVE" if selected_bag >= 0 else "EQUIPPED — ACTIVE"]
 	details.text = game.CATALOG.description(selected, game)
 	var before: Dictionary = game.build_for(game.equipment.scepter, game.equipment.book)
 	var after: Dictionary = before

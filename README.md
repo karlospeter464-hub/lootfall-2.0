@@ -24,25 +24,27 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 - **WASD:** move. **Mouse:** aim. **Hold left mouse button:** cast fireballs. **I:** equipment. **Escape:** close the current window or pause/resume. The pause menu also has an Equipment button.
 - Clear six waves by default. After waves 2 and 4, choose one of three cards. These choices remain wave-based.
 - Walk over loot to put it in your **eight-field bag**. Picking up does not activate an item. **I** pauses combat and shows item descriptions, current equipment and a before/after comparison. Select a bag item and **Equip selected** to swap its matching **scepter/book** slot. Unequip returns it to the bag. Put on the ground keeps it nearby; a full bag leaves ground loot available, and a full ground cap refuses a drop without deleting your item.
-- Enemies have a **2% Codex drop chance** per eligible defeat, at most one natural Codex per run. On a kill without a Codex drop, a separate **10% other-gear roll** chooses equally between the two scepters and Focus Grimoire. Uncollected loot remains between waves; the default ground cap is 16. Forced console drops can create duplicate Codices for testing; only the equipped book works.
+- Each eligible kill first has a **10% chance to drop an item**. A separate cascade then checks **Legendary 2% → Rare 25% → Magic 50% → Normal remainder**, stopping at the first eligible success. These are independent conditional checks, not flat shares. The item is chosen from the winning rarity pool. Ground cap 16 still applies; uncollected loot stays between waves.
+- Fixed pools: **Normal — Ember Scepter** (white), **Magic — Swift Scepter** (blue), **Rare — Focus Grimoire** (gold), **Legendary — Cinder Codex** (orange). Inventory inspection identifies rarity in text as well as color. Effects are unchanged; these are fixed item types, not randomized quality variants.
+- Before the natural Codex drops, actual shares per successful item roll are **2% / 24.5% / 36.75% / 36.75%** (L/R/M/N); at 10% item chance, chances per eligible kill are **0.2% / 2.45% / 3.675% / 3.675%**. The existing one-natural-Codex-per-run rule remains: an exhausted Legendary pool falls through to Rare, giving **0% / 25% / 37.5% / 37.5%** per item. Forced console drops can still bypass that limit for testing. Restart restores eligibility. With the default six-wave kill budget, a natural Codex is now substantially rarer than before.
 - Four fixed test items: **Ember Scepter** adds 30% damage; **Swift Scepter** shortens the casting interval by 20%; **Focus Grimoire** adds 40% damage instead of splash; **Cinder Codex** adds splash on impact: **85-unit radius, 60% of that fireball's damage**, excluding the directly hit enemy. All effects require equipping. Damage bonuses from gear add together, then multiply card-adjusted damage; Swift multiplies the card-adjusted interval. Splash derives from the resulting fireball damage.
 - Death or clearing the final wave opens the result screen and awards **Echoes for completed waves**. Default: `10 * cleared * (cleared + 1) / 2`, so clearing 1/2/3/6 waves earns 10/30/60/210 Echoes. Dying during wave 4 pays for the first three cleared waves. Entering a wave alone earns nothing.
 - Echoes and best reached wave are saved at run end. Restart retains them but clears the cards, bag, equipment, ground loot, enemies, projectiles and run counters. Closing the app mid-run does not pay the unfinished run. Items are not persisted.
 - Ground items show their name; full-bag feedback remains visible. Detailed effects stay in the paused inventory. Permanent items, procedural affixes, XP progression and new classes remain outside this package.
-- **Destroy selected** removes a selected bag item and frees its field immediately. It produces no ground item or reward. Equipped items must be unequipped first. Put on the ground remains available; no automatic duplicate deletion is active. Rarity cascades are requested but still pending the probability basis and item-quality decision.
+- **Destroy selected** removes a selected bag item and frees its field immediately. It produces no ground item or reward. Equipped items must be unequipped first. Put on the ground remains available; no automatic duplicate deletion is active.
 
 ## F1 developer console (debug builds only)
 
 **F1** opens/closes the console; **Escape** closes it. Gameplay pauses while it is open. Closing preserves an existing pause, upgrade choice or result screen. SpinBox fields accept keyboard entry and arrow controls; each field shows when it applies.
 
-52 settings are split into tabs:
+54 settings are split into tabs:
 
 | Tab | Adjustable values |
 | --- | --- |
 | Player | Movement, maximum health, base damage, cast interval, hit protection |
 | Waves | Wave limit, first-wave enemies, enemies added per wave, active enemy cap, spawn interval, safe spawn distance, intermission |
 | Enemies | Base health/speed/damage, health/speed growth per wave, seer cap/warning/recovery/impact radius |
-| Combat & loot | Projectile speed/lifetime/spread, all three card strengths, Codex and other-gear drop chances, pickup radius, ground cap, all four item effects |
+| Combat & loot | Projectile speed/lifetime/spread, all three card strengths, separate item chance and Legendary/Rare/Magic checks, pickup radius, ground cap, all four item effects |
 | Rewards & tools | Echoes per cleared-wave tier; invulnerability, freeze enemies, restore HP, force a physical Codex or selected item drop, defeat active enemies, apply RNG seed |
 | Skill tree | Five tier prices, small/notable bonuses for all paths, First Spark, Renewal and Second Wind values/duration |
 
@@ -52,7 +54,9 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 **Save profile / Load profile:** Balancing values are saved separately from game progress. Profiles load manually; restarting the application restores Inspector defaults until you load your profile. Loading validates every value and known key before applying any of them. Profiles do not contain currency, current health, items, RNG state or test switches.
 
-New profiles use version 4 with 52 settings. Versions 1/2/3 (28/33/48 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. Tree effect tuning affects active talents live; ownership changes apply next run. Prices affect new purchases, not refunds. Defaults never erase owned talents or paid prices. Seer values affect new spawns; a zero seer cap disables new seers without deleting existing enemies. Old profiles can restore their previous overall enemy cap.
+New profiles use version 5 with 54 settings. Versions 1/2/3/4 (28/33/48/52 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. **Legacy probability numbers now use the new model:** the previous Codex chance becomes the Legendary check per item, and previous other-gear chance becomes the total item chance. The load status explicitly calls out this changed basis; old profiles do not restore the old drop algorithm. Rare/Magic use startup defaults if absent. F1 metrics show conditional-derived shares per item and chances per eligible kill, adjusted for the Codex limit.
+
+Tree effect tuning affects active talents live; ownership changes apply next run. Prices affect new purchases, not refunds. Defaults never erase owned talents or paid prices. Seer values affect new spawns; a zero seer cap disables new seers without deleting existing enemies. Old profiles can restore their previous overall enemy cap.
 
 **Reset defaults:** Restores the Inspector values captured at startup and clears invulnerability/freeze. It does not refill HP, remove chosen cards or erase saved currency. Invulnerability and freeze also reset on a new run; balancing values stay until reset/reload/application restart.
 
@@ -76,12 +80,13 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 & $godotExe --headless --path . --script res://tests/inventory_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/town_tree_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/encounter_test.gd -- --test-mode
+& $godotExe --headless --path . --script res://tests/rarity_test.gd -- --test-mode
 & $godotExe --headless --path . --quit-after 120 -- --test-mode
 ```
 
 The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 59 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal = **247 checks, no failures** on Godot 4.7.2. Four changed gameplay scripts and the new test passed Godot MCP `script_check`; two new native D3D12 previews were inspected. Earlier P2 town/tree checks also passed with native rendering and a simulated mouse purchase. These are automated checks, not human balance acceptance.
+Current verification: 59 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity = **275 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Five changed gameplay scripts and the new test passed Godot MCP `script_check`; three rarity previews were inspected. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 
@@ -89,7 +94,7 @@ For staged engine previews:
 & $godotExe --path . --script res://tests/capture_preview.gd -- --test-mode --view=loot --output=C:/path/to/preview.png
 ```
 
-Views: `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles. These are reproducible test arrangements, not human playthroughs.
+Views: `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
 
 ## Manual acceptance
 

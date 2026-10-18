@@ -32,8 +32,10 @@ const FIELDS := [
 	["Combat & loot", "arena", "upgrade_damage_bonus", "Power card: base damage bonus", 0, 1, 0.01, "Live; 0.35 = +35% per chosen card"],
 	["Combat & loot", "arena", "upgrade_cast_reduction", "Quick card: interval reduction", 0, 0.8, 0.01, "Live; 0.2 = 20% per chosen card"],
 	["Combat & loot", "arena", "upgrade_projectiles", "Fan card: extra projectiles", 1, 3, 1, "Live; aimed shot preserved"],
-	["Combat & loot", "arena", "drop_chance", "Codex drop chance (0..1)", 0, 1, 0.005, "Next kill; at most one Codex per run"],
-	["Combat & loot", "arena", "equipment_drop_chance", "Other gear drop chance (0..1)", 0, 1, 0.01, "Next kill without a Codex drop; one of three items"],
+	["Combat & loot", "arena", "equipment_drop_chance", "Item chance per kill (0..1)", 0, 1, 0.01, "First roll; independent of rarity"],
+	["Combat & loot", "arena", "drop_chance", "Legendary check per item", 0, 1, 0.005, "First rarity roll; natural Codex limit still applies"],
+	["Combat & loot", "arena", "rare_chance", "Rare check after Legendary", 0, 1, 0.01, "Only after Legendary fails or its pool is exhausted"],
+	["Combat & loot", "arena", "magic_chance", "Magic check after Rare", 0, 1, 0.01, "Only after higher tiers fail; Normal is guaranteed rest"],
 	["Combat & loot", "arena", "ground_loot_limit", "Ground item cap", 1, 64, 1, "Live; existing items are kept"],
 	["Combat & loot", "arena", "scepter_damage_bonus", "Ember Scepter damage bonus", 0, 2, 0.05, "Live when equipped; additive with Focus bonus"],
 	["Combat & loot", "arena", "scepter_cast_reduction", "Swift Scepter interval reduction", 0, 0.8, 0.05, "Live when equipped; multiplies card interval"],
@@ -246,10 +248,14 @@ func update_metrics() -> void:
 	var total_hp: float = 0.0
 	for enemy in game.enemies.get_children():
 		total_hp += enemy.health
-	metrics.text = "FPS: %d   |   Frame: %.2f ms   |   Static memory: %.1f MiB\nState: %s   |   Active run time: %.1f s   |   Seed: %d\nWave: %d / %d   |   Cleared: %d   |   Best: %d\nEnemies: %d / %d cap   |   Still to spawn: %d   |   Active enemy HP: %.0f\nKills: %d   |   Projectiles alive: %d   |   Projectiles fired / hit: %d / %d\nDamage dealt: %.1f   |   Average run DPS: %.1f   |   Health lost: %.1f\nPlayer: %.0f / %.0f HP   |   Speed: %.0f   |   Protection left: %.2f s\nFireball: %.1f damage   |   %.3f s interval   |   %d projectiles\nCards: %d / 2   |   Power / Quick / Fan: %d / %d / %d\nCodex active: %s   |   Items on floor: %d   |   Drops this run: %d\nSplash: %.0f radius / %.0f%% damage   |   Drop chance: %.2f%%\nEchoes: %d saved   |   Current payout: %d   |   Saved progress available: %s" % [Engine.get_frames_per_second(), 1000.0 / maxf(Engine.get_frames_per_second(), 1), OS.get_static_memory_usage() / 1048576.0, game.State.keys()[game.state], game.elapsed, game.rng.seed, game.wave, game.total_waves, game.completed_waves, game.best_wave, game.enemies.get_child_count(), game.enemy_limit, game.remaining_to_spawn, total_hp, game.kills, game.projectiles.get_child_count(), game.shots_fired, game.shots_hit, game.damage_dealt, game.damage_dealt / maxf(game.elapsed, 0.001), game.damage_taken, game.player.health, game.player.max_health, game.player.move_speed, game.player.protection, game.player.damage, game.player.cast_interval, game.player.projectile_count, game.upgrades_chosen, game.power_upgrades, game.quick_upgrades, game.fan_upgrades, str(game.codex_active), game.loot.get_child_count(), game.drops_created, game.explosion_radius, game.explosion_damage_ratio * 100, game.drop_chance * 100, game.progress.echoes, game.predicted_reward(), str(game.progress.available)]
+	metrics.text = "FPS: %d   |   Frame: %.2f ms   |   Static memory: %.1f MiB\nState: %s   |   Active run time: %.1f s   |   Seed: %d\nWave: %d / %d   |   Cleared: %d   |   Best: %d\nEnemies: %d / %d cap   |   Still to spawn: %d   |   Active enemy HP: %.0f\nKills: %d   |   Projectiles alive: %d   |   Projectiles fired / hit: %d / %d\nDamage dealt: %.1f   |   Average run DPS: %.1f   |   Health lost: %.1f\nPlayer: %.0f / %.0f HP   |   Speed: %.0f   |   Protection left: %.2f s\nFireball: %.1f damage   |   %.3f s interval   |   %d projectiles\nCards: %d / 2   |   Power / Quick / Fan: %d / %d / %d\nCodex active: %s   |   Items on floor: %d   |   Drops this run: %d\nSplash: %.0f radius / %.0f%% damage   |   Legendary check: %.2f%%\nEchoes: %d saved   |   Current payout: %d   |   Saved progress available: %s" % [Engine.get_frames_per_second(), 1000.0 / maxf(Engine.get_frames_per_second(), 1), OS.get_static_memory_usage() / 1048576.0, game.State.keys()[game.state], game.elapsed, game.rng.seed, game.wave, game.total_waves, game.completed_waves, game.best_wave, game.enemies.get_child_count(), game.enemy_limit, game.remaining_to_spawn, total_hp, game.kills, game.projectiles.get_child_count(), game.shots_fired, game.shots_hit, game.damage_dealt, game.damage_dealt / maxf(game.elapsed, 0.001), game.damage_taken, game.player.health, game.player.max_health, game.player.move_speed, game.player.protection, game.player.damage, game.player.cast_interval, game.player.projectile_count, game.upgrades_chosen, game.power_upgrades, game.quick_upgrades, game.fan_upgrades, str(game.codex_active), game.loot.get_child_count(), game.drops_created, game.explosion_radius, game.explosion_damage_ratio * 100, game.drop_chance * 100, game.progress.echoes, game.predicted_reward(), str(game.progress.available)]
 
 	metrics.text += "\nBag: %d / 8   |   Scepter: %s   |   Book: %s" % [game.bag_used(), game.equipment.scepter, game.equipment.book]
 	metrics.text += "\nTalents saved / active: %d / %d   |   Echoes invested: %d   |   Second Wind: %.1fs" % [game.progress.talents.size(), game.active_talents.size(), game.progress.invested(), game.player.haste_remaining]
+	var rates: Dictionary = game.rarity_rates()
+	metrics.text += "\nItem chance / kill: %.2f%%   |   Natural Codex available: %s" % [game.equipment_drop_chance * 100, str(not game.codex_spawned)]
+	metrics.text += "\nActual share / item (L / R / M / N): %.2f%% / %.2f%% / %.2f%% / %.2f%%" % [rates.legendary * 100, rates.rare * 100, rates.magic * 100, rates.normal * 100]
+	metrics.text += "\nActual chance / kill (L / R / M / N): %.3f%% / %.3f%% / %.3f%% / %.3f%%" % [rates.legendary * game.equipment_drop_chance * 100, rates.rare * game.equipment_drop_chance * 100, rates.magic * game.equipment_drop_chance * 100, rates.normal * game.equipment_drop_chance * 100]
 
 func valid_value(field: Array, value: Variant) -> bool:
 	if not (value is int or value is float) or not is_finite(float(value)):
@@ -296,13 +302,13 @@ func save_profile() -> bool:
 	for field in FIELDS:
 		var target: Object = game.player if field[1] == "player" else game
 		values[field[1] + "." + field[2]] = target.get(field[2])
-	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 4, "values": values})
+	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 5, "values": values})
 	status.text = "Profile saved: %s" % ProjectSettings.globalize_path(profile_path) if error == OK else "Profile not saved: %s" % error_string(error)
 	return error == OK
 
 func load_profile() -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(profile_path)
-	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4) or not data.get("values") is Dictionary:
+	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5) or not data.get("values") is Dictionary:
 		status.text = "Invalid or missing profile. Nothing changed."
 		return false
 	var values: Dictionary = data.values
@@ -328,10 +334,12 @@ func load_profile() -> bool:
 		var key: String = field[1] + "." + field[2]
 		apply_setting(key, values.get(key, defaults[key]))
 	sync_controls()
-	status.text = "Legacy profile loaded; newer settings use startup defaults." if version < 4 else "Profile loaded. Test switches and progress are not part of profiles."
+	status.text = "Legacy values loaded. Loot now uses a per-item rarity cascade; newer fields use startup defaults." if version < 5 else "Profile loaded. Test switches and progress are not part of profiles."
 	return true
 
 func field_version(field: Array) -> int:
+	if field[2] in ["rare_chance", "magic_chance"]:
+		return 5
 	if field[2].begins_with("ranged_"):
 		return 4
 	if field[2].begins_with("tree_"):

@@ -112,11 +112,12 @@ func run() -> void:
 	check(game.drop_owned_item(-1, "book") and not game.codex_active, "Putting equipped gear down immediately removes its effect")
 	game.drop_chance = 0
 	game.equipment_drop_chance = 1
+	game.state = game.State.FIGHTING
 	game.enemy_slain(Vector2(200, 300))
 	check(game.loot.get_child_count() == 3 and game.loot.get_child(2).item_id != "cinder_codex", "A guaranteed other-gear roll creates a physical regular item")
 	check(dev.save_profile(), "The expanded profile can be saved")
 	var modern: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(modern.version == 4 and modern.values.size() == 52, "New profiles explicitly use version four with all settings")
+	check(modern.version == 5 and modern.values.size() == 54, "New profiles explicitly use version five with all settings")
 	var legacy: Dictionary = modern.duplicate(true)
 	legacy.version = 1
 	for field in dev.FIELDS:
@@ -130,7 +131,7 @@ func run() -> void:
 	legacy.values["unknown.item"] = 1
 	SAFE_JSON.write_object(dev.profile_path, legacy)
 	check(not dev.load_profile() and game.player.move_speed == 345, "Unknown legacy settings are rejected atomically")
-	modern.version = 5
+	modern.version = 6
 	SAFE_JSON.write_object(dev.profile_path, modern)
 	check(not dev.load_profile(), "Future profile versions are rejected")
 	panel.open_inventory()

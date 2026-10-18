@@ -20,7 +20,7 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	var color := Color(CATALOG.ITEMS[item_id].color)
+	var color: Color = CATALOG.color(item_id)
 	var glow: Color = Color(color, 0.1 + 0.04 * sin(pulse * 4))
 	draw_circle(Vector2.ZERO, 30, glow)
 	draw_arc(Vector2.ZERO, 22 + sin(pulse * 4) * 2, 0, TAU, 32, color, 2)

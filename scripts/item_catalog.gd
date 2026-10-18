@@ -1,12 +1,37 @@
 extends RefCounted
 
+const RARITIES := {
+	"legendary": {"name": "Legendary", "color": "efa75c"},
+	"rare": {"name": "Rare", "color": "d8bf69"},
+	"magic": {"name": "Magic", "color": "79a9ec"},
+	"normal": {"name": "Normal", "color": "cbd0d6"},
+}
 const ITEMS := {
-	"ember_scepter": {"name": "Ember Scepter", "slot": "scepter", "color": "d8a36c", "brief": "Stronger direct fireball hits."},
-	"swift_scepter": {"name": "Swift Scepter", "slot": "scepter", "color": "75c6cc", "brief": "Cast fireballs more often."},
-	"cinder_codex": {"name": "Cinder Codex", "slot": "book", "color": "edbb63", "brief": "Fireball impacts splash nearby enemies."},
-	"focus_grimoire": {"name": "Focus Grimoire", "slot": "book", "color": "b29ddd", "brief": "Boost direct hits instead of splash."},
+	"ember_scepter": {"name": "Ember Scepter", "slot": "scepter", "rarity": "normal"},
+	"swift_scepter": {"name": "Swift Scepter", "slot": "scepter", "rarity": "magic"},
+	"cinder_codex": {"name": "Cinder Codex", "slot": "book", "rarity": "legendary"},
+	"focus_grimoire": {"name": "Focus Grimoire", "slot": "book", "rarity": "rare"},
 }
 static var icons: Dictionary = {}
+
+static func color(id: String) -> Color:
+	return Color(RARITIES[ITEMS[id].rarity].color)
+
+static func label(id: String) -> String:
+	return RARITIES[ITEMS[id].rarity].name
+
+static func roll_item(random, legendary: float, rare: float, magic: float, codex_available: bool) -> String:
+	var chances := {"legendary": legendary, "rare": rare, "magic": magic, "normal": 1.0}
+	for rarity in RARITIES:
+		if rarity != "normal" and random.randf() >= chances[rarity] and chances[rarity] < 1.0:
+			continue
+		var pool: Array[String] = []
+		for id in ITEMS:
+			if ITEMS[id].rarity == rarity and (id != "cinder_codex" or codex_available):
+				pool.append(id)
+		if not pool.is_empty():
+			return pool[random.randi_range(0, pool.size() - 1)]
+	return ""
 
 static func description(id: String, game: Object) -> String:
 	match id:
@@ -20,7 +45,7 @@ static func icon(id: String) -> Texture2D:
 	if not ITEMS.has(id):
 		return null
 	if not icons.has(id):
-		var color: String = ITEMS[id].color
+		var color: String = RARITIES[ITEMS[id].rarity].color
 		var shape: String
 		if ITEMS[id].slot == "scepter":
 			shape = '<path d="M12 28 L22 11" stroke="#b7a084" stroke-width="4"/><path d="M23 3 L29 10 L23 17 L17 10 Z" fill="#%s"/><path d="M23 6 L26 10 L23 12 L20 10 Z" fill="#fff2cc"/>' % color

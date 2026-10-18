@@ -48,6 +48,13 @@ func capture() -> void:
 			game.finish_run(true)
 		elif argument == "--view=loot":
 			game.drop_codex(game.player.position + Vector2(130, 0))
+		elif argument == "--view=rarity_loot":
+			var positions := [Vector2(-110, -80), Vector2(110, -80), Vector2(-110, 80), Vector2(110, 80)]
+			var ids: Array = game.CATALOG.ITEMS.keys()
+			for index in ids.size():
+				game.drop_item(ids[index], game.player.position + positions[index])
+		elif argument == "--view=rarity_metrics":
+			game.dev_console.open_console()
 		elif argument == "--view=inventory":
 			for id in ["ember_scepter", "cinder_codex", "swift_scepter", "focus_grimoire"]:
 				game.accept_item(id)

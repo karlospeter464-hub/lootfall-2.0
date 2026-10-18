@@ -46,7 +46,7 @@ func run() -> void:
 	var dev = game.dev_console
 	var store = game.progress
 	check(game.state == game.State.TOWN and paused and town.screen.visible, "The application starts in town")
-	check(town.node_buttons.size() == 15 and dev.controls.size() == 52, "All 15 talents and 52 balance controls are present")
+	check(town.node_buttons.size() == 15 and dev.controls.size() == 54, "All 15 talents and 54 balance controls are present")
 	key(KEY_I)
 	await process_frame
 	check(not game.inventory_panel.is_open and game.bag_used() == 0, "Town cannot open run equipment")
