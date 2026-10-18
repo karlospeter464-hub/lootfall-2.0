@@ -20,7 +20,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 ## Play
 
-- From wave 2, **Cinder Seers** join the melee enemies: a blue diamond silhouette keeps its distance and marks a fixed ground position in pink. Leave the circle during the 1.1-second warning, or defeat the seer before its attack resolves. The position does not track you after marking. Default recovery is 2.8 seconds, impact radius 38, and damage uses the enemy damage value. Inventory/pause/freeze stop the warning. At most two seers are active; the overall default cap is now 12. Every fourth spawn from wave 2 is a seer when its cap permits; wave budgets and card events are unchanged.
+- From wave 2, **Cinder Seers** join the melee enemies: a blue diamond silhouette keeps its distance and marks a fixed ground position in pink. Leave the circle during the 1.4-second warning, or defeat the seer before its attack resolves. The position does not track you after marking. Default recovery is 2.0 seconds, impact radius 38, and damage uses the enemy damage value. Inventory/pause/freeze stop the warning. At most two seers are active; the overall default cap is now 12. Every fourth spawn from wave 2 is a seer when its cap permits; wave budgets and card events are unchanged.
 - **WASD:** move. **Mouse:** aim. **Hold left mouse button:** cast fireballs. **I:** equipment. **Escape:** close the current window or pause/resume. The pause menu also has an Equipment button.
 - Clear six waves by default. After waves 2 and 4, choose one of three cards. These choices remain wave-based.
 - Walk over loot to put it in your **eight-field bag**. Picking up does not activate an item. **I** pauses combat and shows item descriptions, current equipment and a before/after comparison. Select a bag item and **Equip selected** to swap its matching **scepter/book** slot. Unequip returns it to the bag. Put on the ground keeps it nearby; a full bag leaves ground loot available, and a full ground cap refuses a drop without deleting your item.
@@ -86,7 +86,7 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 
 The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 59 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 67 counterplay = **342 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Five changed gameplay scripts and the new test passed Godot MCP `script_check`; three rarity previews were inspected. These are automated checks, not human balance acceptance.
+Current verification: 59 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay = **349 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Five changed gameplay scripts and the new test passed Godot MCP `script_check`; three rarity previews were inspected. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 
@@ -94,7 +94,7 @@ For staged engine previews:
 & $godotExe --path . --script res://tests/capture_preview.gd -- --test-mode --view=loot --output=C:/path/to/preview.png
 ```
 
-Views: `ce1`, `ce1_tools`, `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
+Views: `ce1_feedback`, `ce1`, `ce1_tools`, `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
 
 ## Manual acceptance
 
@@ -108,9 +108,9 @@ Development documentation: `C:/Users/elias/OneDrive/Dokumente/ChatGPT/Lootfall 2
 
 ## CE1: Combat Counterplay
 
-Rune Guardians first appear in wave 3, every eighth spawn candidate, with at most one alive. They replace a normal spawn and obey the total cap. A guardian has 4x wave-scaled HP, 55% movement speed and normal contact damage. Its damage taken is `max(incoming - 8, incoming * 0.2)`: one reduction per event, for direct hits and splash alike. Non-positive input deals no damage. Its broad green rune silhouette identifies the role. All values are initial tuning, not accepted balance.
+Rune Guardians first appear in wave 3, every sixth spawn candidate, with at most two alive. They replace a normal spawn and obey the total cap. A guardian has 6x wave-scaled HP, 55% movement speed and normal contact damage. Its damage taken is `max(incoming - 8, incoming * 0.2)`: one reduction per event, for direct hits and splash alike. Non-positive input deals no damage. Its broad green rune silhouette and shield outline identify the role. The shield flashes when hit. Floating numbers separate actual HP damage from absorbed damage, e.g. 6.0 and 8.0 BLOCKED on a 14-damage shot. Absorption is calculated after the minimum-damage floor, excludes overkill, and never inflates dealt-damage metrics; this is existing armor feedback, with no shield HP or recharge. All values are initial tuning, not accepted balance.
 
-Cinder Seers now have 3x wave-scaled HP so rapid fire can interrupt them before killing them. Five direct projectile hits during the existing 1.1-second warning cancel that cast and begin the full 2.8-second recovery. Splash never counts. Dots show concentration damage and **BROKEN** confirms interruption. Every new cast resets the count; death clears the cast. Warning, recovery and feedback timers respect pause/freeze. Set the hit threshold to zero to disable interruption for newly spawned seers.
+Cinder Seers now have 6x wave-scaled HP so rapid fire can interrupt them before killing them. Five direct projectile hits during the existing 1.4-second warning cancel that cast and begin the full 2.0-second recovery. Splash never counts. Dots and **INTERRUPT n/5** show concentration damage; **BROKEN** lasts one second after interruption. Seers prefer 210 units of distance instead of 280 and begin their first warning after 0.35 s instead of 1 s. Every new cast resets the count; death clears the cast. Warning, recovery and feedback timers respect pause/freeze. Set the hit threshold to zero to disable interruption for newly spawned seers.
 
 Default no-talent profiles using only existing gear/cards:
 
@@ -120,7 +120,7 @@ Default no-talent profiles using only existing gear/cards:
 | Heavy | Ember Scepter + Focus Grimoire, two Ember Power | 40.46 | 0.36 s |
 | Area | Ember Scepter + Cinder Codex, two Fire Fan | 18.2; 10.92 splash | 0.36 s; three fan shots |
 
-At wave 3 a seer has 102 HP. The automated real-projectile arrangement produced five rapid hits and one interruption while it survived at 32 HP; Heavy killed it with three hits instead. A default unequipped 0.36-second fireball did not interrupt. This proves feasibility in the controlled arrangement, not player skill or general matchup balance.
+At wave 3 a seer now has 204 HP. In a real-projectile test spanning the new warning, Rapid interrupted once and landed seven hits (106 HP left). Swift plus only one Quick card also interrupted (six total hits, 120 HP left); Heavy and the standard 0.36-second fireball each landed four hits without interruption. This proves feasibility in the controlled arrangement, not player skill or general matchup balance.
 
 **Try all nine matchups:** launch isolated debug play from PowerShell:
 
@@ -130,9 +130,9 @@ At wave 3 a seer has 102 HP. The automated real-projectile arrangement produced 
 
 Open **F1 > Rewards & tools**, select a build and Chaser group / Cinder Seer / Rune Guardian, then **Start CE1 test**. Close F1 and aim right. Repeat with the same tuning for all nine combinations, including weak matchups. Existing F1 tuning is preserved; Reset defaults first for the baseline. The arrangement restarts the isolated run, uses seed 42, stages existing items/cards, and temporarily excludes talents without changing ownership or spending Echoes. It consumes the existing wave spawn budget/caps, has no extra spawn platform, and returns to normal wave flow after the encounter. Low role/total caps and a changed first guardian wave affect the arrangement too. This test action refuses normal launches without `--test-mode`; normal manual gear drops remain available.
 
-New **Enemies** controls: Seer HP multiplier and direct hits to interrupt; Guardian first wave, candidate cadence, cap (0/1), HP multiplier, speed multiplier, flat armor and minimum damage ratio. All apply to new enemies. Existing warning duration remains the interrupt window. Metrics show the effective interval and interruptions on currently active seers only. Profiles v6 preserve all prior validation and legacy defaults; progress format is unchanged.
+New **Enemies** controls: Seer HP multiplier and direct hits to interrupt; Guardian first wave, candidate cadence, cap (0/1/2), HP multiplier, speed multiplier, flat armor and minimum damage ratio. All apply to new enemies. Existing warning duration remains the interrupt window. Metrics show the effective interval and interruptions on currently active seers only. Profiles v6 preserve all prior validation and legacy defaults; progress format is unchanged.
 
-Additional suite: `--headless --path . --script res://tests/counterplay_test.gd -- --test-mode`. Its 67 checks include real player cooldown/swept-projectile interruption vs non-interruption, guardian direct/splash/floor behavior, cluster splash, pause/freeze/death/restart, role/global caps, all nine arrangements and v5/v6 profiles. Six gameplay scripts passed MCP script checks; native D3D12 CE1 encounter/tools previews were inspected.
+Additional suite: `--headless --path . --script res://tests/counterplay_test.gd -- --test-mode`. Its 74 checks include real player cooldown/swept-projectile interruption vs non-interruption, guardian direct/splash/floor behavior, cluster splash, pause/freeze/death/restart, role/global caps, all nine arrangements and v5/v6 profiles. Six gameplay scripts passed MCP script checks; native D3D12 CE1 encounter/tools previews were inspected.
 
 Playtest questions: Does breaking concentration feel intentional? Can slow fire win by killing or dodging? Is guardian armor readable without feeling immune? Does Area gain a clear advantage on groups? Does one build dominate every encounter? No human matchup acceptance, export or long-session balance test yet. No salvage Echoes, item levels, new player stats, new gear or reward/persistence changes in CE1.
 

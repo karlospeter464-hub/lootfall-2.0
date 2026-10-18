@@ -1,10 +1,10 @@
 extends "res://scripts/enemy.gd"
 
-var windup: float = 1.1
-var attack_interval: float = 2.8
+var windup: float = 1.4
+var attack_interval: float = 2.0
 var attack_radius: float = 38.0
-var preferred_distance: float = 280.0
-var cooldown: float = 1.0
+@export_range(120, 400, 10) var preferred_distance: float = 210.0
+var cooldown: float = 0.35
 var charging: bool = false
 var charge_left: float = 0.0
 var marked_position: Vector2
@@ -25,7 +25,7 @@ func take_projectile_hit(amount: float, direction: Vector2 = Vector2.ZERO) -> vo
 		concentration_hits = 0
 		impact_left = 0.0
 		cooldown = attack_interval
-		interrupted_left = 0.65
+		interrupted_left = 1.0
 		interruptions += 1
 	queue_redraw()
 
@@ -80,6 +80,7 @@ func _draw() -> void:
 		draw_line(Vector2(-23, -24), Vector2(-32, -33), Color("99f5dc"), 3)
 		draw_line(Vector2(23, -24), Vector2(32, -33), Color("99f5dc"), 3)
 	if charging and interrupt_hits > 0:
+		draw_string(ThemeDB.fallback_font, Vector2(-42, -47), "INTERRUPT %d/%d" % [concentration_hits, interrupt_hits], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("99f5dc"))
 		for index in interrupt_hits:
 			draw_circle(Vector2((index - (interrupt_hits - 1) / 2.0) * 7, -36), 2.5, Color("99f5dc") if index < concentration_hits else Color("47526a"))
 	if charging or impact_left > 0:

@@ -30,7 +30,7 @@ const FIELDS := [
 	["Enemies", "arena", "seer_interrupt_hits", "Seer direct hits to interrupt", 0, 12, 1, "New seers; within warning; 0 disables"],
 	["Enemies", "arena", "guardian_first_wave", "Guardian first wave", 3, 100, 1, "New spawns"],
 	["Enemies", "arena", "guardian_every", "Guardian candidate every N spawns", 1, 30, 1, "New spawns; replaces a normal spawn"],
-	["Enemies", "arena", "guardian_limit", "Active guardian cap", 0, 1, 1, "New spawns; total enemy cap still applies"],
+	["Enemies", "arena", "guardian_limit", "Active guardian cap", 0, 2, 1, "New spawns; total enemy cap still applies"],
 	["Enemies", "arena", "guardian_health_multiplier", "Guardian HP multiplier", 1, 10, 0.5, "New guardians"],
 	["Enemies", "arena", "guardian_speed_ratio", "Guardian speed multiplier", 0.1, 1, 0.05, "New guardians"],
 	["Enemies", "arena", "guardian_armor", "Guardian flat damage reduction", 0, 50, 1, "New guardians; applies once per hit, including splash"],

@@ -31,25 +31,30 @@ func setup(build_index: int, role_index: int):
 	return game.enemies.get_child(0)
 
 func shoot_during_warning(build_index: int) -> Dictionary:
-	var seer = setup(0 if build_index == -1 else build_index, 1)
+	var seer = setup(0 if build_index in [-1, 3] else build_index, 1)
 	if build_index == -1:
 		game.quick_upgrades = 0
 		game.equipment.scepter = ""
+		game.update_build()
+	elif build_index == 3:
+		game.quick_upgrades = 1
+		game.upgrades_chosen = 1
 		game.update_build()
 	seer.cooldown = 0
 	seer._physics_process(0)
 	var initial_hp: float = seer.health
 	# Real player cooldown, real swept projectiles, fixed warning and moving-knockback-free target.
-	for index in 72:
+	var warning_frames: int = ceili(seer.windup * Engine.physics_ticks_per_second)
+	for index in warning_frames + 6:
 		if not is_instance_valid(seer):
 			break
-		if index < 66:
+		if index < warning_frames:
 			game.player.attack(game.player.global_position.direction_to(seer.global_position))
 		seer._physics_process(1.0 / 60)
 		seer.position = Vector2(660, 420)
 		await frames(1)
 	var result := {"interruptions": seer.interruptions if is_instance_valid(seer) else 0, "hp": seer.health if is_instance_valid(seer) else 0.0, "initial_hp": initial_hp, "hits": game.shots_hit}
-	print("CE1 projectiles / %s: %s" % ["Rapid" if build_index == 0 else "Heavy", result])
+	print("CE1 projectiles / build %d: %s" % [build_index, result])
 	return result
 
 func run() -> void:
@@ -58,22 +63,30 @@ func run() -> void:
 	await process_frame
 	var guardian = setup(0, 2)
 	var hp: float = guardian.health
+	var dealt: float = game.damage_dealt
 	guardian.take_projectile_hit(14)
 	check(is_equal_approx(hp - guardian.health, 6), "Guardian subtracts flat armor once on direct hits")
+	check(game.effects.any(func(effect): return effect.get("blocked", false) and effect.amount == 8), "Guardian shows the actual eight absorbed damage separately")
+	check(is_equal_approx(game.damage_dealt - dealt, 6), "Shield feedback never counts as damage dealt")
 	hp = guardian.health
 	guardian.take_damage(4)
 	check(is_equal_approx(hp - guardian.health, 0.8), "Small splash hits retain the minimum incoming fraction")
+	check(game.effects.any(func(effect): return effect.get("blocked", false) and is_equal_approx(effect.amount, 3.2)), "Floor damage reports 3.2 blocked rather than claiming flat eight")
+	var effect_count: int = game.effects.size()
 	hp = guardian.health
 	guardian.take_damage(0)
 	guardian.take_damage(-5)
 	check(guardian.health == hp, "Non-positive damage cannot heal or damage a guardian")
+	check(game.effects.size() == effect_count, "Non-positive hits emit no damage or shield feedback")
 	guardian.take_damage(40)
 	check(is_equal_approx(hp - guardian.health, 32), "Large hits lose the same flat armor rather than a percentage")
 	check(6.0 / 14 < 32.0 / 40, "Equal raw DPS keeps a larger share with heavy hits")
 	guardian.minimum_ratio = 1
+	game.effects.clear()
 	hp = guardian.health
 	guardian.take_damage(10)
 	check(is_equal_approx(hp - guardian.health, 10), "A 100-percent floor permits full incoming damage")
+	check(not game.effects.any(func(effect): return effect.get("blocked", false)), "No blocked damage is shown when the minimum allows full damage")
 	var primary = setup(2, 0)
 	game.remaining_to_spawn = 1
 	game.spawn_enemy("guardian")
@@ -138,6 +151,8 @@ func run() -> void:
 	check(game.enemies.get_child_count() == 0 and game.projectiles.get_child_count() == 0, "Restart removes all pending attacks and projectiles")
 	var rapid: Dictionary = await shoot_during_warning(0)
 	check(rapid.interruptions == 1 and rapid.hp > 0 and rapid.hits >= 5, "Actual Swift + two Quick build interrupts a living default seer")
+	var early_rapid: Dictionary = await shoot_during_warning(3)
+	check(early_rapid.interruptions == 1 and early_rapid.hp > 0, "Swift and only one Quick card can interrupt before the late-run second choice")
 	var heavy: Dictionary = await shoot_during_warning(1)
 	check(heavy.interruptions == 0 and heavy.hits < 5, "Actual heavy build cannot reach the interruption threshold")
 	check(heavy.hp < heavy.initial_hp, "Heavy build still damages the seer")
@@ -170,7 +185,7 @@ func run() -> void:
 			game.spawn_enemy()
 		var guardians: Array = game.enemies.get_children().filter(func(enemy): return enemy.get_script() == game.GUARDIAN_ENEMY)
 		var seers: Array = game.enemies.get_children().filter(func(enemy): return enemy.get_script() == game.RANGED_ENEMY)
-		check(guardians.size() == (0 if wave_index < 3 else 1), "Guardian first wave and one-alive cap: wave %d" % wave_index)
+		check(guardians.size() == (0 if wave_index < 3 else 2), "Guardian first wave and two-alive cap: wave %d" % wave_index)
 		check(seers.size() <= game.ranged_limit and game.enemies.get_child_count() <= game.enemy_limit, "Both role caps respect global cap: wave %d" % wave_index)
 	game.restart_run()
 	game.guardian_limit = 0

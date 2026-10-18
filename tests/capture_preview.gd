@@ -15,22 +15,32 @@ func capture() -> void:
 	game.set_process(false)
 	game.player.controls_enabled = false
 	game.rng.seed = 42
-	if OS.get_cmdline_user_args().has("--view=ce1") or OS.get_cmdline_user_args().has("--view=ce1_tools"):
+	var feedback_view: bool = OS.get_cmdline_user_args().has("--view=ce1_feedback")
+	if feedback_view or OS.get_cmdline_user_args().has("--view=ce1") or OS.get_cmdline_user_args().has("--view=ce1_tools"):
 		game.wave = 2
 	elif OS.get_cmdline_user_args().has("--view=encounter"):
 		game.wave = 1
 	game.begin_wave()
-	for index in 8:
+	for index in (12 if feedback_view else 8):
 		game.spawn_enemy()
 		var enemy = game.enemies.get_child(index)
 		enemy.position = Vector2(250 + index * 115, 240 + (index % 3) * 130)
+		if feedback_view:
+			enemy.position = Vector2(240 + (index % 4) * 230, 240 + (index / 4) * 160)
 		enemy.set_physics_process(false)
 		if enemy.get_script() == game.RANGED_ENEMY:
 			enemy.charging = true
 			enemy.charge_left = 0.6
-			if OS.get_cmdline_user_args().has("--view=ce1"):
+			if feedback_view or OS.get_cmdline_user_args().has("--view=ce1"):
 				enemy.concentration_hits = 3
 			enemy.marked_position = game.player.position + Vector2(80, 70)
+			enemy.queue_redraw()
+		if feedback_view and enemy.get_script() == game.GUARDIAN_ENEMY:
+			enemy.take_projectile_hit(14)
+		if feedback_view and index == 7 and enemy.get_script() == game.RANGED_ENEMY:
+			enemy.charging = false
+			enemy.concentration_hits = 0
+			enemy.interrupted_left = 1.0
 			enemy.queue_redraw()
 	game._cast(game.player.position + Vector2(80, 0), Vector2.RIGHT, 14)
 	game.projectiles.get_child(0).set_physics_process(false)
@@ -95,6 +105,7 @@ func capture() -> void:
 		game.remaining_to_spawn = 0
 	game.update_hud()
 	await process_frame
+	game.queue_redraw()
 	await RenderingServer.frame_post_draw
 	var error: Error = root.get_texture().get_image().save_png(output)
 	if error != OK:

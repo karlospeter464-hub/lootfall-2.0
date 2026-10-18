@@ -1,10 +1,17 @@
 extends "res://scripts/enemy.gd"
 
+signal armor_absorbed(at: Vector2, amount: float)
+
 @export_range(0, 50, 1) var armor: float = 8.0
 @export_range(0.05, 1, 0.05) var minimum_ratio: float = 0.2
 
 func take_damage(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
-	super.take_damage(maxf(amount - armor, amount * minimum_ratio) if amount > 0 else 0.0, direction)
+	if dead or amount <= 0:
+		return
+	var reduced: float = maxf(amount - armor, amount * minimum_ratio)
+	if amount > reduced:
+		armor_absorbed.emit(global_position, amount - reduced)
+	super.take_damage(reduced, direction)
 
 func _draw() -> void:
 	super._draw()
@@ -15,3 +22,6 @@ func _draw() -> void:
 	draw_line(Vector2(0, -12), Vector2(10, -1), Color("203b40"), 4)
 	draw_line(Vector2(0, -12), Vector2(0, 11), Color("203b40"), 4)
 	draw_string(ThemeDB.fallback_font, Vector2(-24, -35), "RUNE", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, color)
+	if armor > 0 and minimum_ratio < 1:
+		var shield := PackedVector2Array([Vector2(-29, -25), Vector2(29, -25), Vector2(31, 18), Vector2(0, 34), Vector2(-31, 18), Vector2(-29, -25)])
+		draw_polyline(shield, Color("c0f1ff") if flash > 0 else Color("6398b6"), 4 if flash > 0 else 1.5, true)

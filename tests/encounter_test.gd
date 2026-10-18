@@ -108,7 +108,7 @@ func run() -> void:
 			values[field[1] + "." + field[2]] = dev.defaults[field[1] + "." + field[2]]
 	SAFE_JSON.write_object(dev.profile_path, {"version": 3, "values": values})
 	dev.apply_setting("arena.ranged_windup", 2.5)
-	check(dev.load_profile() and values.size() == 48 and is_equal_approx(game.ranged_windup, 1.1), "Legacy v3 profiles preserve old values and default new enemy fields")
+	check(dev.load_profile() and values.size() == 48 and is_equal_approx(game.ranged_windup, 1.4), "Legacy v3 profiles preserve old values and default new enemy fields")
 	check(SAFE_JSON.read_object(dev.profile_path).version == 3, "Legacy loading does not rewrite the old profile")
 	game.queue_free()
 	await process_frame

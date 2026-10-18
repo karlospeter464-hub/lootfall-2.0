@@ -20,15 +20,15 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN }
 @export_range(0, 20, 1) var enemies_per_wave: int = 4
 @export_range(1, 100, 1) var enemy_limit: int = 12
 @export_range(0, 6, 1) var ranged_limit: int = 2
-@export_range(0.4, 3, 0.1) var ranged_windup: float = 1.1
-@export_range(0.5, 6, 0.1) var ranged_interval: float = 2.8
+@export_range(0.4, 3, 0.1) var ranged_windup: float = 1.4
+@export_range(0.5, 6, 0.1) var ranged_interval: float = 2.0
 @export_range(20, 100, 1) var ranged_radius: float = 38.0
-@export_range(1, 10, 0.5) var seer_health_multiplier: float = 3.0
+@export_range(1, 10, 0.5) var seer_health_multiplier: float = 6.0
 @export_range(0, 12, 1) var seer_interrupt_hits: int = 5
 @export_range(3, 100, 1) var guardian_first_wave: int = 3
-@export_range(1, 30, 1) var guardian_every: int = 8
-@export_range(0, 1, 1) var guardian_limit: int = 1
-@export_range(1, 10, 0.5) var guardian_health_multiplier: float = 4.0
+@export_range(1, 30, 1) var guardian_every: int = 6
+@export_range(0, 2, 1) var guardian_limit: int = 2
+@export_range(1, 10, 0.5) var guardian_health_multiplier: float = 6.0
 @export_range(0.1, 1, 0.05) var guardian_speed_ratio: float = 0.55
 @export_range(0, 50, 1) var guardian_armor: float = 8.0
 @export_range(0.05, 1, 0.05) var guardian_minimum_ratio: float = 0.2
@@ -313,6 +313,7 @@ func spawn_enemy(forced_role: String = "") -> void:
 		enemy.set_script(GUARDIAN_ENEMY)
 		enemy.armor = guardian_armor
 		enemy.minimum_ratio = guardian_minimum_ratio
+		enemy.armor_absorbed.connect(show_blocked)
 	elif wave >= 2 and ranged_alive < ranged_limit and (forced_role == "seer" or (forced_role.is_empty() and spawned_this_wave % 4 == 3)):
 		enemy.set_script(RANGED_ENEMY)
 		enemy.windup = ranged_windup
@@ -600,6 +601,10 @@ func show_hit(at: Vector2, amount: float, killed: bool) -> void:
 	damage_dealt += amount
 	effects.append({"at": at, "amount": amount, "killed": killed, "life": 0.5})
 
+func show_blocked(at: Vector2, amount: float) -> void:
+	# Absorbed damage is feedback only, never dealt damage or another hit.
+	effects.append({"at": at + Vector2(-18, -24), "amount": amount, "killed": false, "blocked": true, "life": 0.85, "duration": 0.85})
+
 func _health_changed(current: float, maximum: float) -> void:
 	damage_taken += maxf(0.0, last_health - current)
 	last_health = current
@@ -737,13 +742,16 @@ func _draw() -> void:
 		draw_circle(corner, 8, Color("b37c49"))
 		draw_circle(corner, 3, Color("ffe0a0"))
 	for effect in effects:
-		var alpha: float = effect.life / 0.5
+		var alpha: float = effect.life / effect.get("duration", 0.5)
 		var color := Color("ffd291") if effect.killed else Color("f8e5c2")
 		color.a = alpha
 		var point: Vector2 = effect.at
+		if effect.get("blocked", false):
+			draw_string(ThemeDB.fallback_font, point + Vector2(-9, -25 - (1 - alpha) * 25), "%s BLOCKED" % str(snappedf(effect.amount, 0.1)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.55, 0.84, 1.0, alpha))
+			continue
 		if effect.has("explosion"):
 			draw_circle(point, effect.explosion * (1.0 - alpha), Color(1.0, 0.55, 0.2, alpha * 0.12))
 			draw_arc(point, effect.explosion * (1.0 - alpha), 0, TAU, 40, color, 2)
 			continue
 		draw_arc(point, 8 + (1 - alpha) * (30 if effect.killed else 12), 0, TAU, 16, color, 2)
-		draw_string(ThemeDB.fallback_font, point + Vector2(-9, -25 - (1 - alpha) * 25), str(ceili(effect.amount)), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
+		draw_string(ThemeDB.fallback_font, point + Vector2(24, -25 - (1 - alpha) * 25), str(snappedf(effect.amount, 0.1)), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
