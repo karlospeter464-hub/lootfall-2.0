@@ -9,18 +9,48 @@ var charging: bool = false
 var charge_left: float = 0.0
 var marked_position: Vector2
 var impact_left: float = 0.0
+var interrupt_hits: int = 5
+var concentration_hits: int = 0
+var interrupted_left: float = 0.0
+var interruptions: int = 0
+
+func take_projectile_hit(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
+	super.take_projectile_hit(amount, direction)
+	if dead or amount <= 0 or not charging or interrupt_hits <= 0:
+		return
+	concentration_hits += 1
+	if concentration_hits >= interrupt_hits:
+		charging = false
+		charge_left = 0.0
+		concentration_hits = 0
+		impact_left = 0.0
+		cooldown = attack_interval
+		interrupted_left = 0.65
+		interruptions += 1
+	queue_redraw()
+
+func take_damage(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
+	super.take_damage(amount, direction)
+	if dead:
+		charging = false
+		charge_left = 0.0
+		concentration_hits = 0
+		impact_left = 0.0
+		interrupted_left = 0.0
 
 func _physics_process(delta: float) -> void:
 	if dead or frozen or not is_instance_valid(target):
 		return
 	flash = maxf(0.0, flash - delta)
 	impact_left = maxf(0.0, impact_left - delta)
+	interrupted_left = maxf(0.0, interrupted_left - delta)
 	knockback = knockback.move_toward(Vector2.ZERO, 600 * delta)
 	if charging:
 		charge_left = maxf(0.0, charge_left - delta)
 		velocity = knockback
 		if charge_left <= 0:
 			charging = false
+			concentration_hits = 0
 			impact_left = 0.25
 			cooldown = attack_interval
 			if target.global_position.distance_to(marked_position) <= attack_radius:
@@ -32,6 +62,7 @@ func _physics_process(delta: float) -> void:
 		velocity = move_direction * move_speed * (1.0 if distance > preferred_distance + 30 else (-1.0 if distance < preferred_distance - 30 else 0.0)) + knockback
 		if cooldown <= 0:
 			charging = true
+			concentration_hits = 0
 			charge_left = windup
 			marked_position = target.global_position
 			velocity = Vector2.ZERO
@@ -44,6 +75,13 @@ func _draw() -> void:
 	draw_colored_polygon(PackedVector2Array([Vector2(0, -29), Vector2(18, -5), Vector2(0, 13), Vector2(-18, -5)]), Color("739bd0") if flash <= 0 else Color("fff1cc"))
 	draw_circle(Vector2(0, -6), 6, Color("19253a"))
 	draw_circle(Vector2(0, -6), 2, Color("f5d18b"))
+	if interrupted_left > 0:
+		draw_string(ThemeDB.fallback_font, Vector2(-29, -40), "BROKEN", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("99f5dc"))
+		draw_line(Vector2(-23, -24), Vector2(-32, -33), Color("99f5dc"), 3)
+		draw_line(Vector2(23, -24), Vector2(32, -33), Color("99f5dc"), 3)
+	if charging and interrupt_hits > 0:
+		for index in interrupt_hits:
+			draw_circle(Vector2((index - (interrupt_hits - 1) / 2.0) * 7, -36), 2.5, Color("99f5dc") if index < concentration_hits else Color("47526a"))
 	if charging or impact_left > 0:
 		var point: Vector2 = to_local(marked_position)
 		var color := Color("ed8ca8") if charging else Color("ffc2d2")

@@ -30,6 +30,9 @@ func _physics_process(delta: float) -> void:
 		target.call("take_damage", contact_damage)
 	queue_redraw()
 
+func take_projectile_hit(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
+	take_damage(amount, direction)
+
 func take_damage(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
 	if dead or amount <= 0.0:
 		return

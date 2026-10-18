@@ -37,13 +37,13 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 **F1** opens/closes the console; **Escape** closes it. Gameplay pauses while it is open. Closing preserves an existing pause, upgrade choice or result screen. SpinBox fields accept keyboard entry and arrow controls; each field shows when it applies.
 
-54 settings are split into tabs:
+63 settings are split into tabs:
 
 | Tab | Adjustable values |
 | --- | --- |
 | Player | Movement, maximum health, base damage, cast interval, hit protection |
 | Waves | Wave limit, first-wave enemies, enemies added per wave, active enemy cap, spawn interval, safe spawn distance, intermission |
-| Enemies | Base health/speed/damage, health/speed growth per wave, seer cap/warning/recovery/impact radius |
+| Enemies | Base health/speed/damage, health/speed growth per wave, seer cap/warning/recovery/radius/HP/interruption; guardian first wave/cadence/cap/HP/speed/flat armor/minimum damage |
 | Combat & loot | Projectile speed/lifetime/spread, all three card strengths, separate item chance and Legendary/Rare/Magic checks, pickup radius, ground cap, all four item effects |
 | Rewards & tools | Echoes per cleared-wave tier; invulnerability, freeze enemies, restore HP, force a physical Codex or selected item drop, defeat active enemies, apply RNG seed |
 | Skill tree | Five tier prices, small/notable bonuses for all paths, First Spark, Renewal and Second Wind values/duration |
@@ -54,7 +54,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 **Save profile / Load profile:** Balancing values are saved separately from game progress. Profiles load manually; restarting the application restores Inspector defaults until you load your profile. Loading validates every value and known key before applying any of them. Profiles do not contain currency, current health, items, RNG state or test switches.
 
-New profiles use version 5 with 54 settings. Versions 1/2/3/4 (28/33/48/52 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. **Legacy probability numbers now use the new model:** the previous Codex chance becomes the Legendary check per item, and previous other-gear chance becomes the total item chance. The load status explicitly calls out this changed basis; old profiles do not restore the old drop algorithm. Rare/Magic use startup defaults if absent. F1 metrics show conditional-derived shares per item and chances per eligible kill, adjusted for the Codex limit.
+New profiles use version 6 with 63 settings. Versions 1/2/3/4/5 (28/33/48/52/54 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. **Legacy probability numbers now use the new model:** the previous Codex chance becomes the Legendary check per item, and previous other-gear chance becomes the total item chance. The load status explicitly calls out this changed basis; old profiles do not restore the old drop algorithm. Rare/Magic use startup defaults if absent. F1 metrics show conditional-derived shares per item and chances per eligible kill, adjusted for the Codex limit.
 
 Tree effect tuning affects active talents live; ownership changes apply next run. Prices affect new purchases, not refunds. Defaults never erase owned talents or paid prices. Seer values affect new spawns; a zero seer cap disables new seers without deleting existing enemies. Old profiles can restore their previous overall enemy cap.
 
@@ -86,7 +86,7 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 
 The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 59 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity = **275 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Five changed gameplay scripts and the new test passed Godot MCP `script_check`; three rarity previews were inspected. These are automated checks, not human balance acceptance.
+Current verification: 59 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 67 counterplay = **342 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Five changed gameplay scripts and the new test passed Godot MCP `script_check`; three rarity previews were inspected. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 
@@ -94,7 +94,7 @@ For staged engine previews:
 & $godotExe --path . --script res://tests/capture_preview.gd -- --test-mode --view=loot --output=C:/path/to/preview.png
 ```
 
-Views: `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
+Views: `ce1`, `ce1_tools`, `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
 
 ## Manual acceptance
 
@@ -105,6 +105,36 @@ For P2: finish a run → Return to Town → buy a connected talent → Start Run
 For encounters: reach wave 2, prioritize seers or move out of their marked circles while melee enemies pursue you. Check whether this changes your target and movement choices with fewer enemies. Fill your bag, destroy an unwanted bag item and collect the waiting ground drop. Human warning readability, mixed-wave difficulty and the best long-term disposal/rarity rules remain open.
 
 Development documentation: `C:/Users/elias/OneDrive/Dokumente/ChatGPT/Lootfall 2.0`. Game source: `C:/Users/elias/Lootfall 2.0/lootfall-2.0`.
+
+## CE1: Combat Counterplay
+
+Rune Guardians first appear in wave 3, every eighth spawn candidate, with at most one alive. They replace a normal spawn and obey the total cap. A guardian has 4x wave-scaled HP, 55% movement speed and normal contact damage. Its damage taken is `max(incoming - 8, incoming * 0.2)`: one reduction per event, for direct hits and splash alike. Non-positive input deals no damage. Its broad green rune silhouette identifies the role. All values are initial tuning, not accepted balance.
+
+Cinder Seers now have 3x wave-scaled HP so rapid fire can interrupt them before killing them. Five direct projectile hits during the existing 1.1-second warning cancel that cast and begin the full 2.8-second recovery. Splash never counts. Dots show concentration damage and **BROKEN** confirms interruption. Every new cast resets the count; death clears the cast. Warning, recovery and feedback timers respect pause/freeze. Set the hit threshold to zero to disable interruption for newly spawned seers.
+
+Default no-talent profiles using only existing gear/cards:
+
+| Profile | Equipment and two cards | Damage / aimed shot | Cast interval |
+| --- | --- | --- | --- |
+| Rapid | Swift Scepter, two Quick Casting | 14 | 0.18432 s |
+| Heavy | Ember Scepter + Focus Grimoire, two Ember Power | 40.46 | 0.36 s |
+| Area | Ember Scepter + Cinder Codex, two Fire Fan | 18.2; 10.92 splash | 0.36 s; three fan shots |
+
+At wave 3 a seer has 102 HP. The automated real-projectile arrangement produced five rapid hits and one interruption while it survived at 32 HP; Heavy killed it with three hits instead. A default unequipped 0.36-second fireball did not interrupt. This proves feasibility in the controlled arrangement, not player skill or general matchup balance.
+
+**Try all nine matchups:** launch isolated debug play from PowerShell:
+
+```powershell
+& 'C:/Users/elias/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe' --path 'C:/Users/elias/Lootfall 2.0/lootfall-2.0' -- --test-mode
+```
+
+Open **F1 > Rewards & tools**, select a build and Chaser group / Cinder Seer / Rune Guardian, then **Start CE1 test**. Close F1 and aim right. Repeat with the same tuning for all nine combinations, including weak matchups. Existing F1 tuning is preserved; Reset defaults first for the baseline. The arrangement restarts the isolated run, uses seed 42, stages existing items/cards, and temporarily excludes talents without changing ownership or spending Echoes. It consumes the existing wave spawn budget/caps, has no extra spawn platform, and returns to normal wave flow after the encounter. Low role/total caps and a changed first guardian wave affect the arrangement too. This test action refuses normal launches without `--test-mode`; normal manual gear drops remain available.
+
+New **Enemies** controls: Seer HP multiplier and direct hits to interrupt; Guardian first wave, candidate cadence, cap (0/1), HP multiplier, speed multiplier, flat armor and minimum damage ratio. All apply to new enemies. Existing warning duration remains the interrupt window. Metrics show the effective interval and interruptions on currently active seers only. Profiles v6 preserve all prior validation and legacy defaults; progress format is unchanged.
+
+Additional suite: `--headless --path . --script res://tests/counterplay_test.gd -- --test-mode`. Its 67 checks include real player cooldown/swept-projectile interruption vs non-interruption, guardian direct/splash/floor behavior, cluster splash, pause/freeze/death/restart, role/global caps, all nine arrangements and v5/v6 profiles. Six gameplay scripts passed MCP script checks; native D3D12 CE1 encounter/tools previews were inspected.
+
+Playtest questions: Does breaking concentration feel intentional? Can slow fire win by killing or dodging? Is guardian armor readable without feeling immune? Does Area gain a clear advantage on groups? Does one build dominate every encounter? No human matchup acceptance, export or long-session balance test yet. No salvage Echoes, item levels, new player stats, new gear or reward/persistence changes in CE1.
 
 ## Local version control
 

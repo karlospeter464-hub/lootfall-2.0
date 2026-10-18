@@ -2,6 +2,7 @@ extends Node2D
 
 const ENEMY = preload("res://scenes/enemy.tscn")
 const RANGED_ENEMY = preload("res://scripts/ranged_enemy.gd")
+const GUARDIAN_ENEMY = preload("res://scripts/guardian_enemy.gd")
 const PROJECTILE = preload("res://scenes/projectile.tscn")
 const PICKUP = preload("res://scripts/loot_pickup.gd")
 const PROGRESS = preload("res://scripts/progress_store.gd")
@@ -22,6 +23,15 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN }
 @export_range(0.4, 3, 0.1) var ranged_windup: float = 1.1
 @export_range(0.5, 6, 0.1) var ranged_interval: float = 2.8
 @export_range(20, 100, 1) var ranged_radius: float = 38.0
+@export_range(1, 10, 0.5) var seer_health_multiplier: float = 3.0
+@export_range(0, 12, 1) var seer_interrupt_hits: int = 5
+@export_range(3, 100, 1) var guardian_first_wave: int = 3
+@export_range(1, 30, 1) var guardian_every: int = 8
+@export_range(0, 1, 1) var guardian_limit: int = 1
+@export_range(1, 10, 0.5) var guardian_health_multiplier: float = 4.0
+@export_range(0.1, 1, 0.05) var guardian_speed_ratio: float = 0.55
+@export_range(0, 50, 1) var guardian_armor: float = 8.0
+@export_range(0.05, 1, 0.05) var guardian_minimum_ratio: float = 0.2
 @export_range(0.1, 3.0, 0.05) var spawn_interval: float = 0.65
 @export_range(100, 600, 10) var safe_spawn_distance: float = 260.0
 @export_range(10, 300, 5) var enemy_speed: float = 85.0
@@ -266,7 +276,7 @@ func begin_wave() -> void:
 	spawn_clock = 0.0
 	state = State.FIGHTING
 
-func spawn_enemy() -> void:
+func spawn_enemy(forced_role: String = "") -> void:
 	if state != State.FIGHTING or remaining_to_spawn <= 0 or enemies.get_child_count() >= enemy_limit:
 		return
 	var spawn_at: Vector2 = Vector2.ZERO
@@ -293,25 +303,70 @@ func spawn_enemy() -> void:
 	var enemy = ENEMY.instantiate()
 	var spawned_this_wave: int = first_wave_enemies + (wave - 1) * enemies_per_wave - remaining_to_spawn
 	var ranged_alive: int = 0
+	var guardians_alive: int = 0
 	for current in enemies.get_children():
 		if current.get_script() == RANGED_ENEMY and not current.dead:
 			ranged_alive += 1
-	if wave >= 2 and spawned_this_wave % 4 == 3 and ranged_alive < ranged_limit:
+		if current.get_script() == GUARDIAN_ENEMY and not current.dead:
+			guardians_alive += 1
+	if wave >= guardian_first_wave and guardians_alive < guardian_limit and (forced_role == "guardian" or (forced_role.is_empty() and spawned_this_wave % guardian_every == guardian_every - 1)):
+		enemy.set_script(GUARDIAN_ENEMY)
+		enemy.armor = guardian_armor
+		enemy.minimum_ratio = guardian_minimum_ratio
+	elif wave >= 2 and ranged_alive < ranged_limit and (forced_role == "seer" or (forced_role.is_empty() and spawned_this_wave % 4 == 3)):
 		enemy.set_script(RANGED_ENEMY)
 		enemy.windup = ranged_windup
 		enemy.attack_interval = ranged_interval
 		enemy.attack_radius = ranged_radius
+		enemy.interrupt_hits = seer_interrupt_hits
 	enemy.position = spawn_at
 	enemy.target = player
 	enemy.bounds = BOUNDS
 	enemy.max_health = enemy_health + (wave - 1) * enemy_health_growth
 	enemy.move_speed = enemy_speed + (wave - 1) * enemy_speed_growth
+	if enemy.get_script() == GUARDIAN_ENEMY:
+		enemy.max_health *= guardian_health_multiplier
+		enemy.move_speed *= guardian_speed_ratio
+	elif enemy.get_script() == RANGED_ENEMY:
+		enemy.max_health *= seer_health_multiplier
 	enemy.contact_damage = enemy_damage
 	enemy.frozen = enemies_frozen
 	enemy.hit.connect(show_hit)
 	enemy.slain.connect(enemy_slain)
 	enemies.add_child(enemy)
 	remaining_to_spawn -= 1
+
+func start_counterplay_test(build_index: int, role_index: int) -> bool:
+	# Isolated saves only: these arrangements deliberately replace the active test run.
+	if not OS.is_debug_build() or not OS.get_cmdline_user_args().has("--test-mode") or build_index not in [0, 1, 2] or role_index not in [0, 1, 2]:
+		return false
+	restart_run()
+	if state == State.FINISHED:
+		return false
+	active_talents.clear()
+	rng.seed = 42
+	quick_upgrades = 2 if build_index == 0 else 0
+	power_upgrades = 2 if build_index == 1 else 0
+	fan_upgrades = 2 if build_index == 2 else 0
+	upgrades_chosen = 2
+	for id in (["swift_scepter"] if build_index == 0 else (["ember_scepter", "focus_grimoire"] if build_index == 1 else ["ember_scepter", "cinder_codex"])):
+		accept_item(id)
+		equip_item(bag.find(id))
+	update_build()
+	wave = maxi(3, guardian_first_wave) - 1
+	begin_wave()
+	player.position = Vector2(440, 420)
+	for index in (6 if role_index == 0 else 1):
+		var count: int = enemies.get_child_count()
+		spawn_enemy(["chaser", "seer", "guardian"][role_index])
+		if enemies.get_child_count() > count:
+			var enemy = enemies.get_child(count)
+			enemy.position = Vector2(660 + (index % 2) * 35, 420 + (index / 2) * 35)
+			if enemy.get_script() == RANGED_ENEMY:
+				enemy.cooldown = 0
+	remaining_to_spawn = 0
+	show_notice("CE1 isolated test: %s vs %s. Normal wave flow resumes after this encounter." % [["Rapid", "Heavy", "Area"][build_index], ["Chasers", "Seer", "Guardian"][role_index]])
+	return true
 
 func complete_wave() -> void:
 	if state != State.FIGHTING:

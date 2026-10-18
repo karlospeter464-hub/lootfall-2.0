@@ -20,7 +20,7 @@ func _physics_process(delta: float) -> void:
 		var body: Object = result.collider
 		if body.has_method("take_damage"):
 			var full_health: bool = body.get("health") != null and body.get("max_health") != null and is_equal_approx(float(body.get("health")), float(body.get("max_health")))
-			body.call("take_damage", damage * (1.0 + opening_bonus if full_health else 1.0), direction)
+			body.call("take_projectile_hit" if body.has_method("take_projectile_hit") else "take_damage", damage * (1.0 + opening_bonus if full_health else 1.0), direction)
 		impact.emit(result.position, damage, body)
 		queue_free()
 		return

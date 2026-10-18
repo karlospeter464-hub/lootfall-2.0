@@ -15,7 +15,9 @@ func capture() -> void:
 	game.set_process(false)
 	game.player.controls_enabled = false
 	game.rng.seed = 42
-	if OS.get_cmdline_user_args().has("--view=encounter"):
+	if OS.get_cmdline_user_args().has("--view=ce1") or OS.get_cmdline_user_args().has("--view=ce1_tools"):
+		game.wave = 2
+	elif OS.get_cmdline_user_args().has("--view=encounter"):
 		game.wave = 1
 	game.begin_wave()
 	for index in 8:
@@ -26,6 +28,8 @@ func capture() -> void:
 		if enemy.get_script() == game.RANGED_ENEMY:
 			enemy.charging = true
 			enemy.charge_left = 0.6
+			if OS.get_cmdline_user_args().has("--view=ce1"):
+				enemy.concentration_hits = 3
 			enemy.marked_position = game.player.position + Vector2(80, 70)
 			enemy.queue_redraw()
 	game._cast(game.player.position + Vector2(80, 0), Vector2.RIGHT, 14)
@@ -55,6 +59,9 @@ func capture() -> void:
 				game.drop_item(ids[index], game.player.position + positions[index])
 		elif argument == "--view=rarity_metrics":
 			game.dev_console.open_console()
+		elif argument == "--view=ce1_tools":
+			game.dev_console.open_console()
+			game.dev_console.tabs.current_tab = 5
 		elif argument == "--view=inventory":
 			for id in ["ember_scepter", "cinder_codex", "swift_scepter", "focus_grimoire"]:
 				game.accept_item(id)

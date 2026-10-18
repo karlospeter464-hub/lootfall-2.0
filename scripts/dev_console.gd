@@ -26,6 +26,15 @@ const FIELDS := [
 	["Enemies", "arena", "ranged_windup", "Seer warning duration (s)", 0.4, 3, 0.1, "New seers; target position is locked"],
 	["Enemies", "arena", "ranged_interval", "Seer recovery (s)", 0.5, 6, 0.1, "New seers"],
 	["Enemies", "arena", "ranged_radius", "Seer impact radius", 20, 100, 1, "New seers; leave the marked circle"],
+	["Enemies", "arena", "seer_health_multiplier", "Seer HP multiplier", 1, 10, 0.5, "New seers; enough HP to test interruption"],
+	["Enemies", "arena", "seer_interrupt_hits", "Seer direct hits to interrupt", 0, 12, 1, "New seers; within warning; 0 disables"],
+	["Enemies", "arena", "guardian_first_wave", "Guardian first wave", 3, 100, 1, "New spawns"],
+	["Enemies", "arena", "guardian_every", "Guardian candidate every N spawns", 1, 30, 1, "New spawns; replaces a normal spawn"],
+	["Enemies", "arena", "guardian_limit", "Active guardian cap", 0, 1, 1, "New spawns; total enemy cap still applies"],
+	["Enemies", "arena", "guardian_health_multiplier", "Guardian HP multiplier", 1, 10, 0.5, "New guardians"],
+	["Enemies", "arena", "guardian_speed_ratio", "Guardian speed multiplier", 0.1, 1, 0.05, "New guardians"],
+	["Enemies", "arena", "guardian_armor", "Guardian flat damage reduction", 0, 50, 1, "New guardians; applies once per hit, including splash"],
+	["Enemies", "arena", "guardian_minimum_ratio", "Guardian minimum damage ratio", 0.05, 1, 0.05, "New guardians; fraction of incoming damage"],
 	["Combat & loot", "arena", "projectile_speed", "Projectile speed", 100, 1500, 25, "New projectiles"],
 	["Combat & loot", "arena", "projectile_lifetime", "Projectile lifetime (s)", 0.1, 5, 0.1, "New projectiles"],
 	["Combat & loot", "arena", "projectile_spread", "Side-shot spread (radians)", 0, 0.6, 0.01, "Next cast"],
@@ -165,7 +174,7 @@ func _ready() -> void:
 	button(actions, "Drop Codex", func(): game.drop_codex(game.player.position + Vector2(90, 0)))
 	button(actions, "Defeat active enemies", func():
 		for enemy in game.enemies.get_children():
-			enemy.take_damage(enemy.health)
+			enemy.take_damage(enemy.health / enemy.minimum_ratio + enemy.armor if enemy.get_script() == game.GUARDIAN_ENEMY else enemy.health)
 	)
 	var item_row := HBoxContainer.new()
 	pages["Rewards & tools"].add_child(item_row)
@@ -186,6 +195,23 @@ func _ready() -> void:
 	seed_input.value = 42
 	seed_row.add_child(seed_input)
 	button(seed_row, "Apply RNG seed", func(): game.rng.seed = int(seed_input.value); status.text = "RNG restarted from seed %d. Same settings and actions are needed for reproduction." % int(seed_input.value))
+	var ce1_row := HBoxContainer.new()
+	pages["Rewards & tools"].add_child(ce1_row)
+	var build_choice := OptionButton.new()
+	for title_text in ["Rapid: Swift + 2 Quick", "Heavy: Ember + Focus + 2 Power", "Area: Ember + Codex + 2 Fan"]:
+		build_choice.add_item(title_text)
+	ce1_row.add_child(build_choice)
+	var role_choice := OptionButton.new()
+	for title_text in ["Chaser group", "Cinder Seer", "Rune Guardian"]:
+		role_choice.add_item(title_text)
+	ce1_row.add_child(role_choice)
+	button(ce1_row, "Start CE1 test", func():
+		if game.start_counterplay_test(build_choice.selected, role_choice.selected):
+			open_console()
+			status.text = "CE1 arrangement ready. Close F1 and aim right. Existing tuning kept; talents inactive for this test run."
+		else:
+			status.text = "Launch with -- --test-mode for isolated CE1 tests. Check pending save errors if already isolated."
+	)
 	var footer := HBoxContainer.new()
 	column.add_child(footer)
 	button(footer, "Save profile", save_profile)
@@ -256,6 +282,11 @@ func update_metrics() -> void:
 	metrics.text += "\nItem chance / kill: %.2f%%   |   Natural Codex available: %s" % [game.equipment_drop_chance * 100, str(not game.codex_spawned)]
 	metrics.text += "\nActual share / item (L / R / M / N): %.2f%% / %.2f%% / %.2f%% / %.2f%%" % [rates.legendary * 100, rates.rare * 100, rates.magic * 100, rates.normal * 100]
 	metrics.text += "\nActual chance / kill (L / R / M / N): %.3f%% / %.3f%% / %.3f%% / %.3f%%" % [rates.legendary * game.equipment_drop_chance * 100, rates.rare * game.equipment_drop_chance * 100, rates.magic * game.equipment_drop_chance * 100, rates.normal * game.equipment_drop_chance * 100]
+	var interruptions: int = 0
+	for enemy in game.enemies.get_children():
+		if enemy.get_script() == game.RANGED_ENEMY:
+			interruptions += enemy.interruptions
+	metrics.text += "\nActive seers: %d total interruptions   |   Effective cast interval: %.3fs" % [interruptions, game.player.effective_interval()]
 
 func valid_value(field: Array, value: Variant) -> bool:
 	if not (value is int or value is float) or not is_finite(float(value)):
@@ -302,13 +333,13 @@ func save_profile() -> bool:
 	for field in FIELDS:
 		var target: Object = game.player if field[1] == "player" else game
 		values[field[1] + "." + field[2]] = target.get(field[2])
-	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 5, "values": values})
+	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 6, "values": values})
 	status.text = "Profile saved: %s" % ProjectSettings.globalize_path(profile_path) if error == OK else "Profile not saved: %s" % error_string(error)
 	return error == OK
 
 func load_profile() -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(profile_path)
-	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5) or not data.get("values") is Dictionary:
+	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5 and data.get("version") != 6) or not data.get("values") is Dictionary:
 		status.text = "Invalid or missing profile. Nothing changed."
 		return false
 	var values: Dictionary = data.values
@@ -334,10 +365,12 @@ func load_profile() -> bool:
 		var key: String = field[1] + "." + field[2]
 		apply_setting(key, values.get(key, defaults[key]))
 	sync_controls()
-	status.text = "Legacy values loaded. Loot now uses a per-item rarity cascade; newer fields use startup defaults." if version < 5 else "Profile loaded. Test switches and progress are not part of profiles."
+	status.text = "Legacy values loaded. Loot now uses a per-item rarity cascade; newer fields use startup defaults." if version < 6 else "Profile loaded. Test switches and progress are not part of profiles."
 	return true
 
 func field_version(field: Array) -> int:
+	if field[2].begins_with("guardian_") or field[2].begins_with("seer_"):
+		return 6
 	if field[2] in ["rare_chance", "magic_chance"]:
 		return 5
 	if field[2].begins_with("ranged_"):

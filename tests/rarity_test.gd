@@ -99,9 +99,12 @@ func run() -> void:
 	var dev = game.dev_console
 	check(dev.save_profile(), "The new cascade settings save in a real profile")
 	var profile: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(profile.version == 5 and profile.values.size() == 54, "New profiles contain all 54 values with version five")
+	check(profile.version == 6 and profile.values.size() == 63, "New profiles contain all 63 values with version six")
 	var old: Dictionary = profile.duplicate(true)
 	old.version = 4
+	for field in dev.FIELDS:
+		if dev.field_version(field) > 4:
+			old.values.erase(field[1] + "." + field[2])
 	old.values.erase("arena.rare_chance")
 	old.values.erase("arena.magic_chance")
 	old.values["arena.drop_chance"] = 0.04
