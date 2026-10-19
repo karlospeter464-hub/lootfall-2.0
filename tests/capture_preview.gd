@@ -49,6 +49,35 @@ func capture() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--output="):
 			output = argument.trim_prefix("--output=")
+		elif argument in ["--view=followup_inventory", "--view=followup_inventory_effects"]:
+			game.start_card_test(2)
+			game.player.controls_enabled = false
+			game.mechanic_cards.assign([3, 4, 5])
+			game.power_upgrades = 2
+			game.quick_upgrades = 1
+			game.fan_upgrades = 1
+			game.equipment = {"scepter": "ember_scepter", "book": "focus_grimoire"}
+			for id in ["cinder_codex", "swift_scepter", "ember_scepter", "focus_grimoire", "cinder_codex", "swift_scepter", "ember_scepter", "focus_grimoire"]:
+				game.accept_item(id)
+			game.active_talents = {"power_5": 1, "flow_5": 1, "vitality_5": 1}
+			game.update_build()
+			game.player.health = 73
+			game.player.haste_remaining = 2.4
+			game.player.overcharge_hits = 3
+			game.inventory_panel.open_inventory()
+			game.inventory_panel.select_bag(0)
+			if argument == "--view=followup_inventory_effects":
+				game.inventory_panel.screen.find_child("BuildScroll", true, false).scroll_vertical = 10000
+		elif argument == "--view=champion_charge":
+			game.start_ascent_test(5)
+			game._process(2.1)
+			game.spawn_enemy()
+			game.remaining_to_spawn = 0
+			game.boss.position = Vector2(800, 400)
+			game.player.position = Vector2(440, 480)
+			game.player.controls_enabled = false
+			game.boss._physics_process(0)
+			game.boss.set_physics_process(false)
 		elif argument == "--view=ce3_cards":
 			game.state = game.State.UPGRADE
 			game.show_overlay("CHOOSE YOUR UPGRADE", "CE3 mechanics preview — each card can be chosen once per run.")
@@ -160,6 +189,11 @@ func capture() -> void:
 		game.remaining_to_spawn = 0
 	game.update_hud()
 	await process_frame
+	if OS.get_cmdline_user_args().has("--view=followup_inventory_effects"):
+		await process_frame
+		game.inventory_panel.screen.find_child("BuildScroll", true, false).scroll_vertical = 10000
+		game.inventory_panel.screen.find_child("EquipmentScroll", true, false).scroll_vertical = 10000
+		await process_frame
 	game.queue_redraw()
 	await RenderingServer.frame_post_draw
 	var error: Error = root.get_texture().get_image().save_png(output)

@@ -70,7 +70,10 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func effective_interval() -> float:
-	return maxf(MIN_CAST_INTERVAL, cast_interval * (1.0 - hurt_haste_ratio if haste_remaining > 0 else 1.0))
+	return interval_with_haste(cast_interval)
+
+func interval_with_haste(interval: float) -> float:
+	return maxf(MIN_CAST_INTERVAL, interval * (1.0 - hurt_haste_ratio if haste_remaining > 0 else 1.0))
 
 func attack(direction: Vector2) -> void:
 	if cooldown > 0.0 or health <= 0.0 or direction.is_zero_approx():

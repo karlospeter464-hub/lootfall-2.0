@@ -115,7 +115,7 @@ func run() -> void:
 	game.player.position = Vector2(375, 420)
 	game.player.attack(Vector2.RIGHT)
 	await frames(12)
-	check((not is_instance_valid(powered_primary) or powered_primary.dead) and is_equal_approx(powered_neighbor.health, 100 - game.player.damage * 0.4), "Power and Ember Scepter scale the real direct-kill Burst")
+	check((not is_instance_valid(powered_primary) or powered_primary.dead) and is_equal_approx(powered_neighbor.health, 100 - game.player.damage * 0.7), "Power and Ember Scepter scale the real direct-kill Burst")
 	game.power_upgrades = 0
 	game.equipment.scepter = ""
 	clear_field()
@@ -123,7 +123,7 @@ func run() -> void:
 	game.update_build()
 	var first = enemy_at(Vector2(460, 420), 5)
 	var victim = enemy_at(Vector2(490, 450), 3)
-	var survivor = enemy_at(Vector2(520, 460), 100)
+	var survivor = enemy_at(Vector2(580, 460), 100)
 	await frames()
 	fire()
 	await frames(12)
@@ -138,7 +138,7 @@ func run() -> void:
 	primary.take_projectile_hit(10)
 	game.projectile_impact(primary.position, 10, primary)
 	game.projectile_impact(primary.position, 10, primary)
-	check(is_equal_approx(neighbor.health, 96), "Duplicate kill event does not repeat Burst")
+	check(is_equal_approx(neighbor.health, 93), "Duplicate kill event does not repeat Burst")
 	clear_field()
 	game.equipment.book = "cinder_codex"
 	primary = enemy_at(Vector2(460, 420), 5)
@@ -146,7 +146,7 @@ func run() -> void:
 	await frames()
 	fire(20)
 	await frames(10)
-	check(is_equal_approx(neighbor.health, 80), "Burst 40% and Codex 60% combine once on neighbor")
+	check(is_equal_approx(neighbor.health, 74), "Burst 70% and Codex 60% combine once on neighbor")
 	clear_field()
 	game.equipment.book = ""
 	game.player.overcharge_hits = 0
@@ -245,7 +245,7 @@ func run() -> void:
 			profile.values.erase(field[1] + "." + field[2])
 	SAFE_JSON.write_object(dev.profile_path, profile)
 	game.burst_radius = 120
-	check(dev.load_profile() and game.burst_radius == 65, "Legacy v7 loads with CE3 startup defaults")
+	check(dev.load_profile() and game.burst_radius == 105, "Legacy v7 loads with CE3 startup defaults")
 	game.finish_run(false)
 	var count: int = game.projectiles.get_child_count()
 	game.player.attack(Vector2.RIGHT)

@@ -14,6 +14,8 @@ var item_type: Label
 var details: RichTextLabel
 var comparison: Label
 var equipped_stats: Label
+var cards_text: RichTextLabel
+var effect_stats: Label
 var bag_title: Label
 var notice: Label
 var equip_button: Button
@@ -26,82 +28,113 @@ func _ready() -> void:
 	layer = 10
 	screen = Control.new()
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	screen.theme = Theme.new()
+	screen.theme.default_font_size = 16
 	add_child(screen)
 	var shade := ColorRect.new()
-	shade.color = Color(0.025, 0.035, 0.06, 0.92)
+	shade.color = Color(0.025, 0.035, 0.06, 0.94)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	screen.add_child(shade)
 	var panel := PanelContainer.new()
-	panel.position = Vector2(40, 90)
-	panel.size = Vector2(1200, 620)
+	panel.position = Vector2(40, 30)
+	panel.size = Vector2(1200, 740)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("1a2533")
 	style.border_color = Color("937952")
 	style.set_border_width_all(1)
-	style.set_content_margin_all(22)
+	style.set_content_margin_all(20)
 	panel.add_theme_stylebox_override("panel", style)
 	screen.add_child(panel)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 16)
+	column.add_theme_constant_override("separation", 10)
 	panel.add_child(column)
-	label(column, "APPRENTICE  /  EQUIPMENT", 27, Color("efd2a2"))
-	label(column, "Picking up puts an item in your bag. Equip it to activate its effect. Items last for this run only.", 15)
+	label(column, "APPRENTICE  /  BUILD & EQUIPMENT", 25, Color("efd2a2"))
+	label(column, "Combat is paused. Inspect your build, compare gear and prepare your next move.", 15, Color("aab7c6"))
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 22)
+	body.add_theme_constant_override("separation", 24)
 	column.add_child(body)
 	var equipment := VBoxContainer.new()
-	equipment.custom_minimum_size.x = 210
-	equipment.add_theme_constant_override("separation", 12)
+	equipment.custom_minimum_size.x = 526
+	equipment.add_theme_constant_override("separation", 10)
 	body.add_child(equipment)
-	label(equipment, "EQUIPPED", 15, Color("c9aa7e"))
+	label(equipment, "EQUIPMENT & BAG", 18, Color("c9aa7e"))
+	var slots := HBoxContainer.new()
+	equipment.add_child(slots)
 	for slot in ["scepter", "book"]:
 		var button := Button.new()
-		button.custom_minimum_size = Vector2(210, 76)
+		button.custom_minimum_size = Vector2(244, 62)
 		button.add_theme_font_size_override("font_size", 15)
 		button.pressed.connect(select_slot.bind(slot))
 		button.focus_entered.connect(select_slot.bind(slot))
 		button.toggle_mode = true
-		equipment.add_child(button)
+		slots.add_child(button)
 		slot_buttons[slot] = button
-	equipped_stats = label(equipment, "", 16)
-	var bag := VBoxContainer.new()
-	bag.custom_minimum_size.x = 414
-	bag.add_theme_constant_override("separation", 12)
-	body.add_child(bag)
-	bag_title = label(bag, "", 15, Color("c9aa7e"))
+	bag_title = label(equipment, "", 14, Color("c9aa7e"))
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 10)
-	bag.add_child(grid)
+	grid.add_theme_constant_override("v_separation", 6)
+	equipment.add_child(grid)
 	for index in 8:
 		var button := Button.new()
-		button.custom_minimum_size = Vector2(99, 92)
+		button.custom_minimum_size = Vector2(120, 74)
 		button.add_theme_font_size_override("font_size", 13)
 		button.toggle_mode = true
 		button.pressed.connect(select_bag.bind(index))
 		button.focus_entered.connect(select_bag.bind(index))
 		grid.add_child(button)
 		bag_buttons.append(button)
-	label(bag, "Select a bag item to compare it.\nA swap returns the old item to that bag field.\nA full bag leaves ground loot where it is.", 14, Color("aab7c6"))
+	var equipment_scroll := ScrollContainer.new()
+	equipment_scroll.name = "EquipmentScroll"
+	equipment_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	equipment_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	equipment_scroll.focus_mode = Control.FOCUS_ALL
+	equipment.add_child(equipment_scroll)
 	var inspection := VBoxContainer.new()
-	inspection.custom_minimum_size.x = 450
 	inspection.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inspection.add_theme_constant_override("separation", 12)
-	body.add_child(inspection)
-	title = label(inspection, "", 24, Color("efd2a2"))
+	inspection.add_theme_constant_override("separation", 10)
+	equipment_scroll.add_child(inspection)
+	title = label(inspection, "", 22, Color("efd2a2"))
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	item_type = label(inspection, "", 14, Color("aab7c6"))
+	item_type = label(inspection, "", 13, Color("aab7c6"))
 	details = RichTextLabel.new()
-	details.custom_minimum_size.y = 150
-	details.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	details.add_theme_font_size_override("normal_font_size", 16)
+	details.fit_content = true
+	details.scroll_active = false
+	details.add_theme_font_size_override("normal_font_size", 15)
 	inspection.add_child(details)
-	comparison = label(inspection, "", 16)
+	comparison = label(inspection, "", 15)
+	comparison.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	inspection.move_child(details, inspection.get_child_count() - 1)
+	var build := VBoxContainer.new()
+	build.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build.add_theme_constant_override("separation", 10)
+	body.add_child(build)
+	label(build, "CURRENT BUILD / COMBAT STATS", 18, Color("c9aa7e"))
+	equipped_stats = label(build, "", 16)
+	var build_scroll := ScrollContainer.new()
+	build_scroll.name = "BuildScroll"
+	build_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	build_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	build_scroll.focus_mode = Control.FOCUS_ALL
+	build.add_child(build_scroll)
+	var build_details := VBoxContainer.new()
+	build_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build_details.add_theme_constant_override("separation", 12)
+	build_scroll.add_child(build_details)
+	label(build_details, "SELECTED CARDS / RUN EFFECTS", 18, Color("c9aa7e"))
+	cards_text = RichTextLabel.new()
+	cards_text.bbcode_enabled = true
+	cards_text.fit_content = true
+	cards_text.scroll_active = false
+	cards_text.add_theme_font_size_override("normal_font_size", 16)
+	build_details.add_child(cards_text)
+	label(build_details, "GEAR, TALENTS & TRIGGERS", 18, Color("c9aa7e"))
+	effect_stats = label(build_details, "", 15, Color("baf7ff"))
+	effect_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notice = label(column, "", 14, Color("edca8b"))
 	var actions := HBoxContainer.new()
-	actions.add_theme_constant_override("separation", 14)
+	actions.add_theme_constant_override("separation", 10)
 	column.add_child(actions)
 	equip_button = action_button(actions, "Equip selected", equip_selected)
 	unequip_button = action_button(actions, "Unequip selected", unequip_selected)
@@ -188,9 +221,7 @@ func refresh() -> void:
 		button.icon = game.CATALOG.icon(id)
 		button.add_theme_color_override("font_color", Color("aab7c6") if id.is_empty() else game.CATALOG.color(id))
 		button.set_pressed_no_signal(selected_slot == slot)
-	equipped_stats.text = "CURRENT BUILD\n\nDamage: %.1f\nCast interval: %.3fs\nProjectiles: %d\nSplash: %s" % [game.player.damage, game.player.cast_interval, game.player.projectile_count, "ON" if game.codex_active else "OFF"]
-	if game.player.haste_remaining > 0:
-		equipped_stats.text += "\nSecond Wind: %.1fs\nActive interval: %.3fs" % [game.player.haste_remaining, game.player.effective_interval()]
+	refresh_build()
 	var selected: String = game.bag[selected_bag] if selected_bag >= 0 else game.equipment.get(selected_slot, "")
 	equip_button.disabled = selected.is_empty() or selected_bag < 0
 	unequip_button.disabled = selected.is_empty() or selected_slot.is_empty()
@@ -198,6 +229,7 @@ func refresh() -> void:
 	destroy_button.disabled = selected.is_empty() or selected_bag < 0
 	if selected.is_empty():
 		title.text = "Choose an item"
+		title.add_theme_color_override("font_color", Color("efd2a2"))
 		item_type.text = "Picking up is not equipping."
 		details.text = "Your bag holds found items for this run.\n\nSelect an item or an equipped slot to read its effect. Equipped items can be changed at any time while this window pauses combat."
 		comparison.text = ""
@@ -205,7 +237,7 @@ func refresh() -> void:
 	var item: Dictionary = game.CATALOG.ITEMS[selected]
 	title.text = item.name
 	title.add_theme_color_override("font_color", game.CATALOG.color(selected))
-	item_type.text = "%s  /  %s\n%s  /  THIS RUN ONLY" % [game.CATALOG.label(selected).to_upper(), item.slot.to_upper(), "IN BAG — INACTIVE" if selected_bag >= 0 else "EQUIPPED — ACTIVE"]
+	item_type.text = "%s %s  /  %s" % [game.CATALOG.label(selected).to_upper(), item.slot.to_upper(), "IN BAG — INACTIVE" if selected_bag >= 0 else "EQUIPPED — ACTIVE"]
 	details.text = game.CATALOG.description(selected, game)
 	var before: Dictionary = game.build_for(game.equipment.scepter, game.equipment.book)
 	var after: Dictionary = before
@@ -213,7 +245,52 @@ func refresh() -> void:
 		after = game.build_for(selected if item.slot == "scepter" else game.equipment.scepter, selected if item.slot == "book" else game.equipment.book)
 	var current: String = game.equipment[item.slot]
 	var current_name: String = "Empty" if current.is_empty() else game.CATALOG.ITEMS[current].name
-	comparison.text = "%s\n\nDamage: %.1f → %.1f\nCast interval: %.3fs → %.3fs\nSplash: %s → %s" % [("Replaces: " + current_name) if selected_bag >= 0 else "Currently equipped", before.damage, after.damage, before.interval, after.interval, "ON" if before.splash else "OFF", "ON" if after.splash else "OFF"]
+	comparison.text = "%s\nDirect damage: %.1f → %.1f\nEffective cast interval: %.3fs → %.3fs\nCodex splash: %s → %s" % [("Replaces: " + current_name) if selected_bag >= 0 else "Currently equipped", before.damage, after.damage, game.player.interval_with_haste(before.interval), game.player.interval_with_haste(after.interval), "ON" if before.splash else "OFF", "ON" if after.splash else "OFF"]
+	if before.splash or after.splash:
+		comparison.text += "\nSplash damage: %.1f → %.1f / %.0f radius" % [before.splash_damage, after.splash_damage, game.explosion_radius]
+	if selected_bag >= 0 and selected != current:
+		comparison.text += "\nGain: " + item_effect(selected) + "\nLose: " + item_effect(current)
+	if game.mechanic_cards.has(3):
+		comparison.text += "\nEmber Burst on kill: %.1f → %.1f" % [before.burst_damage, after.burst_damage]
+	if game.mechanic_cards.has(5):
+		comparison.text += "\nCharged main shot: %.1f → %.1f" % [before.charged_damage, after.charged_damage]
+	comparison.text += "\nRun cards and talents stay active."
+
+func item_effect(id: String) -> String:
+	match id:
+		"ember_scepter": return "Ember Scepter (+%.0f%% gear damage)" % (game.scepter_damage_bonus * 100)
+		"swift_scepter": return "Swift Scepter (%.0f%% shorter interval)" % (game.scepter_cast_reduction * 100)
+		"focus_grimoire": return "Focus Grimoire (+%.0f%% gear damage)" % (game.focus_damage_bonus * 100)
+		"cinder_codex": return "Cinder Codex (impact splash, %.0f radius)" % game.explosion_radius
+	return "none"
+
+func refresh_build() -> void:
+	var build: Dictionary = game.build_for(game.equipment.scepter, game.equipment.book)
+	equipped_stats.text = "Direct damage / projectile     %.1f\nCast interval                             %.3f s\nProjectiles / cast                       %d\nHealth                                        %.1f / %.1f" % [game.player.damage, game.player.effective_interval(), game.player.projectile_count, game.player.health, game.player.health_limit]
+	equipped_stats.text += "\nCodex splash    %.1f damage / %.0f radius" % [build.splash_damage, game.explosion_radius] if build.splash else "\nCodex splash    OFF"
+	if game.player.overcharge_ready:
+		equipped_stats.text += "\nNext main shot    %.1f (Overcharge READY)" % build.charged_damage
+	cards_text.text = ""
+	for index in game.UPGRADE_TITLES.size():
+		var stacks: int = [game.power_upgrades, game.quick_upgrades, game.fan_upgrades][index] if index < 3 else (1 if game.mechanic_cards.has(index) else 0)
+		if stacks <= 0:
+			continue
+		cards_text.text += "[b]%s%s[/b]\n%s\n\n" % [game.UPGRADE_TITLES[index], " ×%d" % stacks if index < 3 else "", game.card_description(index)]
+		if index == 3:
+			cards_text.text += "Normal-shot kill: %.1f area damage.\n\n" % build.burst_damage
+	if cards_text.text.is_empty():
+		cards_text.text = "No run cards selected yet."
+	effect_stats.text = "Run gear: " + item_effect(game.equipment.scepter) + "\n" + item_effect(game.equipment.book)
+	if game.player.overcharge_enabled:
+		effect_stats.text += "\nOvercharge: " + ("READY — consumed by next main shot" if game.player.overcharge_ready else "%d/4 direct hits" % game.player.overcharge_hits)
+	effect_stats.text += "\nTemporary buffs: " + ("Second Wind, %.1f s left (interval shown above)" % game.player.haste_remaining if game.player.haste_remaining > 0 else "none")
+	if game.active_talents.has("power_5"):
+		effect_stats.text += "\nFirst Spark: +%.0f%% direct damage only against full HP" % (game.tree_opening_bonus * 100)
+	if game.active_talents.has("flow_5") and game.player.haste_remaining <= 0:
+		effect_stats.text += "\nSecond Wind: available on health loss; currently inactive"
+	if game.active_talents.has("vitality_5"):
+		effect_stats.text += "\nRenewal: heals %.0f%% max HP on wave clear" % (game.tree_wave_heal * 100)
+	effect_stats.text += "\nPermanent talents: %d in this run's snapshot" % game.active_talents.size()
 
 func equip_selected() -> void:
 	if game.equip_item(selected_bag):

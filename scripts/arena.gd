@@ -52,8 +52,8 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTR
 @export_range(0, 1, 0.01) var upgrade_damage_bonus: float = 0.35
 @export_range(0, 0.8, 0.01) var upgrade_cast_reduction: float = 0.2
 @export_range(1, 3, 1) var upgrade_projectiles: int = 1
-@export_range(20, 150, 5) var burst_radius: float = 65.0
-@export_range(0.05, 2, 0.05) var burst_damage_ratio: float = 0.4
+@export_range(20, 150, 5) var burst_radius: float = 105.0
+@export_range(0.05, 2, 0.05) var burst_damage_ratio: float = 0.7
 @export_range(0.05, 2, 0.05) var overcharge_bonus: float = 0.75
 @export_range(100, 1500, 25) var projectile_speed: float = 650.0
 @export_range(0.1, 5, 0.1) var projectile_lifetime: float = 1.8
@@ -432,6 +432,8 @@ func spawn_enemy(forced_role: String = "") -> void:
 		role_name = "boss"
 		if enemy.get_script() == RANGED_ENEMY:
 			enemy.attack_radius *= 1.4
+		else:
+			enemy.escorts_cleared = champion_escorts_cleared.bind(enemy)
 	enemy.max_health = minf(1000000, enemy.max_health)
 	wave_roles[role_name] = wave_roles.get(role_name, 0) + 1
 	enemy.frozen = enemies_frozen
@@ -439,6 +441,9 @@ func spawn_enemy(forced_role: String = "") -> void:
 	enemy.slain.connect(enemy_slain)
 	enemies.add_child(enemy)
 	remaining_to_spawn -= 1
+
+func champion_escorts_cleared(champion: Node) -> bool:
+	return remaining_to_spawn == 0 and enemies.get_children().all(func(other): return other == champion or other.dead)
 
 func start_ascent_test(number: int) -> bool:
 	if not OS.is_debug_build() or not OS.get_cmdline_user_args().has("--test-mode") or number < 1 or number > total_waves:
@@ -534,6 +539,9 @@ func roll_upgrade_cards() -> void:
 		var slot: int = rng.randi_range(0, pool.size() - 1)
 		offered_cards.append(pool[slot])
 		pool.remove_at(slot)
+
+func card_description(index: int) -> String:
+	return ["+%.0f%% of base fireball damage per stack" % (upgrade_damage_bonus * 100), "%.0f%% shorter casting interval per stack" % (upgrade_cast_reduction * 100), "+%d projectile(s) per cast per stack" % upgrade_projectiles, "On direct kill: %.0f radius explosion, %.0f%% shot damage. No chain reactions." % [burst_radius, burst_damage_ratio * 100], "Each fireball directly hits up to two different enemies.", "After 4 direct hits: next main shot +%.0f%% damage. Side shots stay normal." % (overcharge_bonus * 100)][index]
 
 func refresh_upgrade_cards() -> void:
 	if state != State.UPGRADE:
@@ -638,7 +646,7 @@ func _cast(origin: Vector2, direction: Vector2, damage: float) -> void:
 	projectile.damage = damage
 	projectile.max_hits = 2 if mechanic_cards.has(4) else 1
 	if player.main_shot and player.overcharge_ready and mechanic_cards.has(5):
-		projectile.damage *= 1.0 + overcharge_bonus
+		projectile.damage = charged_damage(projectile.damage)
 		projectile.charged = true
 		player.overcharge_ready = false
 		player.queue_redraw()
@@ -673,7 +681,14 @@ func build_for(scepter: String, book: String) -> Dictionary:
 	if scepter == "swift_scepter":
 		interval *= 1.0 - scepter_cast_reduction
 	interval *= 1.0 - minf(0.6, perks.interval)
-	return {"damage": player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus) * (1.0 + gear_damage) * (1.0 + perks.damage), "interval": maxf(player.MIN_CAST_INTERVAL, interval), "projectiles": mini(player.MAX_PROJECTILES_PER_CAST, 1 + fan_upgrades * upgrade_projectiles), "splash": book == "cinder_codex"}
+	var damage: float = player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus) * (1.0 + gear_damage) * (1.0 + perks.damage)
+	return {"damage": damage, "interval": maxf(player.MIN_CAST_INTERVAL, interval), "projectiles": mini(player.MAX_PROJECTILES_PER_CAST, 1 + fan_upgrades * upgrade_projectiles), "splash": book == "cinder_codex", "splash_damage": damage * explosion_damage_ratio if book == "cinder_codex" else 0.0, "burst_damage": burst_damage(damage), "charged_damage": charged_damage(damage)}
+
+func burst_damage(amount: float) -> float:
+	return amount * burst_damage_ratio
+
+func charged_damage(amount: float) -> float:
+	return amount * (1.0 + overcharge_bonus)
 
 func bag_used() -> int:
 	return 8 - bag.count("")
@@ -780,16 +795,16 @@ func projectile_impact(at: Vector2, hit_damage: float, primary: Object) -> void:
 	# Snapshot the direct kill before Codex splash can kill other enemies.
 	if mechanic_cards.has(3) and is_instance_valid(primary) and primary.dead and not primary.has_meta("ember_burst_triggered"):
 		primary.set_meta("ember_burst_triggered", true)
-		area_damage(primary.global_position, hit_damage * burst_damage_ratio, burst_radius, primary)
+		area_damage(primary.global_position, burst_damage(hit_damage), burst_radius, primary, true)
 	if codex_active:
 		area_damage(at, hit_damage * explosion_damage_ratio, explosion_radius, primary)
 
-func area_damage(at: Vector2, amount: float, radius: float, primary: Object) -> void:
+func area_damage(at: Vector2, amount: float, radius: float, primary: Object, burst: bool = false) -> void:
 	if amount <= 0:
 		return
 	# Bound transient visuals as well as projectiles; damage is never dropped.
 	if effects.size() < 512:
-		effects.append({"at": at, "amount": 0, "killed": false, "life": 0.5, "explosion": radius})
+		effects.append({"at": at, "amount": 0, "killed": false, "life": 0.5, "explosion": radius, "burst": burst})
 	for enemy in enemies.get_children():
 		if enemy != primary and not enemy.dead and enemy.global_position.distance_squared_to(at) <= radius * radius:
 			enemy.take_damage(amount, at.direction_to(enemy.global_position))
@@ -975,6 +990,9 @@ func _draw() -> void:
 			draw_string(ThemeDB.fallback_font, point + Vector2(-9, -25 - (1 - alpha) * 25), "%s BLOCKED" % str(snappedf(effect.amount, 0.1)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.55, 0.84, 1.0, alpha))
 			continue
 		if effect.has("explosion"):
+			if effect.get("burst", false):
+				draw_circle(point, effect.explosion, Color(1, 0.35, 0.08, alpha * 0.22))
+				draw_arc(point, effect.explosion, 0, TAU, 40, Color(1, 0.7, 0.25, alpha), 4)
 			draw_circle(point, effect.explosion * (1.0 - alpha), Color(1.0, 0.55, 0.2, alpha * 0.12))
 			draw_arc(point, effect.explosion * (1.0 - alpha), 0, TAU, 40, color, 2)
 			continue

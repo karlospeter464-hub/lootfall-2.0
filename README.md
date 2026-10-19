@@ -4,9 +4,11 @@ Open `project.godot` in Godot 4.7 and press **F5**. Main scene: `scenes/arena.ts
 
 ## CE3: Build Discovery & Card Synergies
 
+**Follow-up:** Ember Burst now defaults to radius **105** / **70%** damage. The Rune Champion gains a locked-direction charge after all escorts are gone. Press **I** for the expanded build overview, selected-card stacks, trigger states and item-effect comparison. See [COMBAT_POLISH_PLAYTEST.md](COMBAT_POLISH_PLAYTEST.md). Existing saved profiles retain their values; Reset defaults applies the new Burst defaults.
+
 Each wave/boss card choice now draws up to three different valid cards from six. Ember Power, Quick Casting and Fire Fan remain repeatable within their limits. Ember Burst (direct-kill explosion), Piercing Flame (two different direct targets) and Overcharge (four direct hits charge the next main shot for +75%) can each be selected once per run. All reset on restart. No build weighting, guaranteed synergy or new permanent unlocks.
 
-See [CE3_PLAYTEST.md](CE3_PLAYTEST.md) for exact interactions, three isolated F1 test builds, tuning and the natural three-to-five-run acceptance guide. CE3 does not address Seer encounter weighting or the Champion's missing gap closer. Those remain separate combat planning topics.
+See [CE3_PLAYTEST.md](CE3_PLAYTEST.md) for exact interactions, three isolated F1 test builds, tuning and the natural three-to-five-run acceptance guide. The follow-up adds the Champion charge and build overview described in [COMBAT_POLISH_PLAYTEST.md](COMBAT_POLISH_PLAYTEST.md); Seer encounter weighting remains separate.
 
 ## Town and permanent skill tree
 
@@ -90,12 +92,13 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 & $godotExe --headless --path . --script res://tests/counterplay_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/ascent_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/card_synergy_test.gd -- --test-mode
+& $godotExe --headless --path . --script res://tests/combat_polish_test.gd -- --test-mode
 & $godotExe --headless --path . --quit-after 120 -- --test-mode
 ```
 
 The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 64 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy = **731 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Four CE3 gameplay scripts passed Godot MCP `script_check`; native CE3 card/combat previews were inspected. These are automated checks, not human balance acceptance.
+Current verification: 64 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish = **766 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Four follow-up gameplay scripts passed Godot MCP `script_check`; native build-overview/effect-list/Champion-charge previews were inspected. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 
@@ -103,7 +106,7 @@ For staged engine previews:
 & $godotExe --path . --script res://tests/capture_preview.gd -- --test-mode --view=loot --output=C:/path/to/preview.png
 ```
 
-Views: `ce3_cards`, `ce3_combat`, `ce2_boss5`, `ce2_boss10`, `ce2_intro`, `ce2_reward`, `ce2_metrics`, `ce1_feedback`, `ce1`, `ce1_tools`, `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
+Views: `followup_inventory`, `followup_inventory_effects`, `champion_charge`, `ce3_cards`, `ce3_combat`, `ce2_boss5`, `ce2_boss10`, `ce2_intro`, `ce2_reward`, `ce2_metrics`, `ce1_feedback`, `ce1`, `ce1_tools`, `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
 
 ## Manual acceptance
 

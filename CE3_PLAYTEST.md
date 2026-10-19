@@ -7,7 +7,7 @@ Start natural runs with F5. The existing wave 2/4/5 choices in each five-wave bl
 | Ember Power | +35% base fireball damage per choice | Yes |
 | Quick Casting | 20% shorter interval per choice, 0.08 s minimum | Yes, until capped |
 | Fire Fan | One extra shot per cast, aimed main shot preserved, nine maximum | Yes, until capped |
-| Ember Burst | A direct projectile kill explodes at the defeated enemy: radius 65, 40% shot damage | Choose once per run |
+| Ember Burst | A direct projectile kill explodes at the defeated enemy: radius 105, 70% shot damage | Choose once per run |
 | Piercing Flame | Each shot can directly hit two different enemies, including both in one frame | Choose once per run |
 | Overcharge | Four successful direct hits ready the next main shot for +75% damage | Choose once per run |
 
@@ -29,7 +29,7 @@ Open **F1 → Rewards & tools**, choose a CE3 build, click **Start CE3 test**, c
 2. **Piercing + Fan + Codex:** Piercing Flame, two Fan cards, Cinder Codex. Position to line up enemies. Compare grouped versus spread enemies; repeated splash can be strong in clusters, but armor still reduces each damage event.
 3. **Overcharge + Quick + Fan:** Overcharge, two Quick and two Fan cards, no gear. Watch the ring charge from actual hits. The next aimed main shot glows; side shots remain normal. Miss deliberately, pause and reopen inventory to inspect behavior.
 
-These are test fixtures, not promises of naturally offered cards. For the success criterion, play **three to five natural runs** and record offered/selected cards, found/equipped items, wave/death cause, whether aim/positioning changed, and whether a boss forced the same swap. A varied offer is not proof of a varied playstyle. Seer relevance and the isolated Champion's weakness remain separate open combat work; no charge attack or new enemy is included here.
+These are test fixtures, not promises of naturally offered cards. For the success criterion, play **three to five natural runs** and record offered/selected cards, found/equipped items, wave/death cause, whether aim/positioning changed, and whether a boss forced the same swap. A varied offer is not proof of a varied playstyle. The follow-up adds a solo Champion charge; see COMBAT_POLISH_PLAYTEST.md. Seer relevance remains separate open combat work; no new enemy was added.
 
 ## Tuning and verification
 
