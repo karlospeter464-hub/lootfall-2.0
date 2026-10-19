@@ -96,6 +96,7 @@ func run() -> void:
 	panel.open_inventory()
 	panel.close_inventory()
 	check(game.state == game.State.UPGRADE and paused and game.buttons.get_child_count() == choices, "Inspecting equipment preserves a pending card choice")
+	game.offered_cards.assign([2])
 	game.choose_upgrade(2)
 	while game.bag_used() < 8:
 		game.accept_item("focus_grimoire")
@@ -121,7 +122,7 @@ func run() -> void:
 	check(game.loot.get_child_count() == 3 and game.loot.get_child(2).item_id != "cinder_codex", "A guaranteed other-gear roll creates a physical regular item")
 	check(dev.save_profile(), "The expanded profile can be saved")
 	var modern: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(modern.version == 7 and modern.values.size() == 71, "New profiles explicitly use version seven with all settings")
+	check(modern.version == 8 and modern.values.size() == 74, "New profiles explicitly use version eight with all settings")
 	var legacy: Dictionary = modern.duplicate(true)
 	legacy.version = 1
 	for field in dev.FIELDS:
@@ -135,7 +136,7 @@ func run() -> void:
 	legacy.values["unknown.item"] = 1
 	SAFE_JSON.write_object(dev.profile_path, legacy)
 	check(not dev.load_profile() and game.player.move_speed == 345, "Unknown legacy settings are rejected atomically")
-	modern.version = 8
+	modern.version = 9
 	SAFE_JSON.write_object(dev.profile_path, modern)
 	check(not dev.load_profile(), "Future profile versions are rejected")
 	panel.open_inventory()

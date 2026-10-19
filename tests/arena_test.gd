@@ -123,8 +123,12 @@ func run() -> void:
 			check(paused and game.state == game.State.UPGRADE, "Normal and boss card waves freeze combat for a choice")
 			check(game.buttons.get_child_count() == 3, "Exactly three upgrade cards are offered")
 			var previous_count: int = game.player.projectile_count
+			# This legacy fixture specifically exercises the Fire Fan button.
+			game.offered_cards.assign([0, 1, 2])
+			game.refresh_upgrade_cards()
 			game.buttons.get_child(2).pressed.emit()
 			check(game.player.projectile_count == previous_count + 1, "The actual Fire Fan button adds one projectile")
+			game.offered_cards.assign([2])
 			game.choose_upgrade(2)
 			check(game.player.projectile_count == previous_count + 1, "A stale click cannot apply a second upgrade")
 			check(not paused, "Choosing an upgrade resumes the run")
@@ -138,9 +142,11 @@ func run() -> void:
 	check(game.player.projectile_count == 1 and game.player.damage == game.player.base_damage, "Restart resets build modifiers")
 	check(game.player.cast_interval == game.player.base_cast_interval and game.kills == 0, "Restart resets cast speed and kills")
 	game.state = game.State.UPGRADE
+	game.offered_cards.assign([0])
 	game.choose_upgrade(0)
 	check(is_equal_approx(game.player.damage, game.player.base_damage * 1.35), "Ember Power increases actual attack damage")
 	game.state = game.State.UPGRADE
+	game.offered_cards.assign([1])
 	game.choose_upgrade(1)
 	check(is_equal_approx(game.player.cast_interval, game.player.base_cast_interval * 0.8), "Quick Casting shortens the actual cooldown")
 	game.restart_run()

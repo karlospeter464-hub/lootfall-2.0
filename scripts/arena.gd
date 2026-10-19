@@ -12,7 +12,7 @@ const INVENTORY_PANEL = preload("res://scripts/inventory_panel.gd")
 const TALENTS = preload("res://scripts/skill_tree.gd")
 const TOWN_PANEL = preload("res://scripts/town_panel.gd")
 const BOUNDS := Rect2(64, 128, 1152, 592)
-const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan"]
+const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan", "Ember Burst", "Piercing Flame", "Overcharge"]
 
 enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTRO }
 
@@ -52,6 +52,9 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTR
 @export_range(0, 1, 0.01) var upgrade_damage_bonus: float = 0.35
 @export_range(0, 0.8, 0.01) var upgrade_cast_reduction: float = 0.2
 @export_range(1, 3, 1) var upgrade_projectiles: int = 1
+@export_range(20, 150, 5) var burst_radius: float = 65.0
+@export_range(0.05, 2, 0.05) var burst_damage_ratio: float = 0.4
+@export_range(0.05, 2, 0.05) var overcharge_bonus: float = 0.75
 @export_range(100, 1500, 25) var projectile_speed: float = 650.0
 @export_range(0.1, 5, 0.1) var projectile_lifetime: float = 1.8
 @export_range(0, 0.6, 0.01) var projectile_spread: float = 0.19
@@ -101,6 +104,7 @@ var hud: Label
 var health_label: Label
 var health_bar: ProgressBar
 var build_label: Label
+var cards_label: Label
 var overlay: PanelContainer
 var overlay_title: Label
 var overlay_text: Label
@@ -126,6 +130,8 @@ var result_victory: bool = false
 var power_upgrades: int = 0
 var quick_upgrades: int = 0
 var fan_upgrades: int = 0
+var mechanic_cards: Array[int] = []
+var offered_cards: Array[int] = []
 var elapsed: float = 0.0
 var damage_dealt: float = 0.0
 var damage_taken: float = 0.0
@@ -249,6 +255,8 @@ func restart_run() -> void:
 	power_upgrades = 0
 	quick_upgrades = 0
 	fan_upgrades = 0
+	mechanic_cards.clear()
+	offered_cards.clear()
 	elapsed = 0.0
 	run_started_usec = Time.get_ticks_usec()
 	run_ended_usec = 0
@@ -475,6 +483,24 @@ func start_counterplay_test(build_index: int, role_index: int) -> bool:
 	show_notice("CE1 isolated test: %s vs %s. Normal wave flow resumes after this encounter." % [["Rapid", "Heavy", "Area"][build_index], ["Chasers", "Seer", "Guardian"][role_index]])
 	return true
 
+func start_card_test(profile: int) -> bool:
+	if profile < 0 or profile > 2 or not start_counterplay_test(profile, 0):
+		return false
+	mechanic_cards.assign([[3], [4], [5]][profile])
+	power_upgrades = 2 if profile == 0 else 0
+	quick_upgrades = 2 if profile == 2 else 0
+	fan_upgrades = 2 if profile > 0 else 0
+	equipment = {"scepter": "", "book": ""}
+	if profile == 0:
+		equipment.scepter = "ember_scepter"
+	elif profile == 1:
+		equipment.book = "cinder_codex"
+	update_build()
+	upgrades_chosen = power_upgrades + quick_upgrades + fan_upgrades + mechanic_cards.size()
+	show_notice("CE3 isolated build test. Seed 42; normal wave flow resumes after this group.")
+	update_hud()
+	return true
+
 func complete_wave() -> void:
 	if state != State.FIGHTING or wave <= completed_waves or remaining_to_spawn > 0 or enemies.get_child_count() > 0:
 		return
@@ -488,11 +514,26 @@ func complete_wave() -> void:
 			player.health_changed.emit(player.health, player.health_limit)
 	if card_wave(wave):
 		state = State.UPGRADE
+		roll_upgrade_cards()
+		if offered_cards.is_empty():
+			after_wave()
+			return
 		get_tree().paused = true
 		show_overlay("BOSS REWARD — CHOOSE YOUR UPGRADE" if is_boss_wave(wave) else "CHOOSE YOUR UPGRADE", "Wave %d cleared. Pick one change for this run.\nCasting is capped at 0.08 s and fans at 9 projectiles." % wave)
 		refresh_upgrade_cards()
 	else:
 		after_wave()
+
+func roll_upgrade_cards() -> void:
+	offered_cards.clear()
+	var pool: Array[int] = []
+	for index in UPGRADE_TITLES.size():
+		if not upgrade_capped(index):
+			pool.append(index)
+	while not pool.is_empty() and offered_cards.size() < 3:
+		var slot: int = rng.randi_range(0, pool.size() - 1)
+		offered_cards.append(pool[slot])
+		pool.remove_at(slot)
 
 func refresh_upgrade_cards() -> void:
 	if state != State.UPGRADE:
@@ -500,14 +541,20 @@ func refresh_upgrade_cards() -> void:
 	for child in buttons.get_children():
 		buttons.remove_child(child)
 		child.queue_free()
-	var details: Array[String] = ["+%.0f%% of base fireball damage" % (upgrade_damage_bonus * 100), "%.0f%% shorter casting interval" % (upgrade_cast_reduction * 100), "+%d projectile(s) per cast" % upgrade_projectiles]
-	for index in 3:
-		add_button(UPGRADE_TITLES[index] + "\n" + ("At limit" if upgrade_capped(index) else details[index]), choose_upgrade.bind(index))
-		buttons.get_child(index).disabled = upgrade_capped(index)
-	buttons.get_child(0).grab_focus()
+	var details: Array[String] = ["+%.0f%% of base fireball damage" % (upgrade_damage_bonus * 100), "%.0f%% shorter casting interval" % (upgrade_cast_reduction * 100), "+%d projectile(s) per cast" % upgrade_projectiles, "Direct kills explode\n%.0f radius / %.0f%% shot damage\nOnce per run" % [burst_radius, burst_damage_ratio * 100], "Fireballs hit up to two enemies\nOnce per run", "Every 4 direct hits charge\nyour next main shot: +%.0f%%\nOnce per run" % (overcharge_bonus * 100)]
+	for index in offered_cards:
+		if not upgrade_capped(index):
+			add_button(UPGRADE_TITLES[index] + "\n" + details[index], choose_upgrade.bind(index))
+	if buttons.get_child_count() > 0:
+		buttons.get_child(0).grab_focus()
+	else:
+		add_button("Continue — no valid upgrades", func():
+			overlay.hide()
+			get_tree().paused = false
+			after_wave())
 
 func upgrade_capped(index: int) -> bool:
-	return (index == 1 and (player.cast_interval <= player.MIN_CAST_INTERVAL or upgrade_cast_reduction <= 0)) or (index == 2 and player.projectile_count >= player.MAX_PROJECTILES_PER_CAST)
+	return (index == 0 and upgrade_damage_bonus <= 0) or (index == 1 and (player.cast_interval <= player.MIN_CAST_INTERVAL or upgrade_cast_reduction <= 0)) or (index == 2 and player.projectile_count >= player.MAX_PROJECTILES_PER_CAST) or mechanic_cards.has(index)
 
 func after_wave() -> void:
 	if wave >= total_waves:
@@ -517,12 +564,14 @@ func after_wave() -> void:
 		break_clock = intermission * (2.0 if is_boss_wave(wave) else 1.0)
 
 func choose_upgrade(index: int) -> void:
-	if state != State.UPGRADE or index < 0 or index >= 3 or upgrade_capped(index):
+	if state != State.UPGRADE or not offered_cards.has(index) or upgrade_capped(index):
 		return
 	match index:
 		0: power_upgrades += 1
 		1: quick_upgrades += 1
 		2: fan_upgrades += 1
+		_: mechanic_cards.append(index)
+	offered_cards.clear()
 	update_build()
 	upgrades_chosen += 1
 	overlay.hide()
@@ -587,6 +636,12 @@ func _cast(origin: Vector2, direction: Vector2, damage: float) -> void:
 	projectile.position = origin
 	projectile.direction = direction
 	projectile.damage = damage
+	projectile.max_hits = 2 if mechanic_cards.has(4) else 1
+	if player.main_shot and player.overcharge_ready and mechanic_cards.has(5):
+		projectile.damage *= 1.0 + overcharge_bonus
+		projectile.charged = true
+		player.overcharge_ready = false
+		player.queue_redraw()
 	projectile.opening_bonus = TALENTS.bonuses(active_talents, self).opening
 	projectile.speed = projectile_speed
 	projectile.lifetime = projectile_lifetime
@@ -600,6 +655,7 @@ func update_build() -> void:
 	player.cast_interval = build.interval
 	player.projectile_count = build.projectiles
 	player.spread_angle = projectile_spread
+	player.overcharge_enabled = mechanic_cards.has(5)
 	var perks: Dictionary = TALENTS.bonuses(active_talents, self)
 	player.health_limit = player.max_health * (1.0 + perks.health)
 	player.hurt_haste_ratio = perks.haste
@@ -720,20 +776,33 @@ func drop_item(id: String, at: Vector2) -> bool:
 
 func projectile_impact(at: Vector2, hit_damage: float, primary: Object) -> void:
 	shots_hit += 1
-	if not codex_active:
+	player.record_direct_hit()
+	# Snapshot the direct kill before Codex splash can kill other enemies.
+	if mechanic_cards.has(3) and is_instance_valid(primary) and primary.dead and not primary.has_meta("ember_burst_triggered"):
+		primary.set_meta("ember_burst_triggered", true)
+		area_damage(primary.global_position, hit_damage * burst_damage_ratio, burst_radius, primary)
+	if codex_active:
+		area_damage(at, hit_damage * explosion_damage_ratio, explosion_radius, primary)
+
+func area_damage(at: Vector2, amount: float, radius: float, primary: Object) -> void:
+	if amount <= 0:
 		return
-	effects.append({"at": at, "amount": 0, "killed": false, "life": 0.5, "explosion": explosion_radius})
+	# Bound transient visuals as well as projectiles; damage is never dropped.
+	if effects.size() < 512:
+		effects.append({"at": at, "amount": 0, "killed": false, "life": 0.5, "explosion": radius})
 	for enemy in enemies.get_children():
-		if enemy != primary and not enemy.dead and enemy.global_position.distance_to(at) <= explosion_radius:
-			enemy.take_damage(hit_damage * explosion_damage_ratio, at.direction_to(enemy.global_position))
+		if enemy != primary and not enemy.dead and enemy.global_position.distance_squared_to(at) <= radius * radius:
+			enemy.take_damage(amount, at.direction_to(enemy.global_position))
 
 func show_hit(at: Vector2, amount: float, killed: bool) -> void:
 	damage_dealt += amount
-	effects.append({"at": at, "amount": amount, "killed": killed, "life": 0.5})
+	if effects.size() < 512:
+		effects.append({"at": at, "amount": amount, "killed": killed, "life": 0.5})
 
 func show_blocked(at: Vector2, amount: float) -> void:
 	# Absorbed damage is feedback only, never dealt damage or another hit.
-	effects.append({"at": at + Vector2(-18, -24), "amount": amount, "killed": false, "blocked": true, "life": 0.85, "duration": 0.85})
+	if effects.size() < 512:
+		effects.append({"at": at + Vector2(-18, -24), "amount": amount, "killed": false, "blocked": true, "life": 0.85, "duration": 0.85})
 
 func _health_changed(current: float, maximum: float) -> void:
 	damage_taken += maxf(0.0, last_health - current)
@@ -750,6 +819,12 @@ func update_hud() -> void:
 		status = "WAVE %02d IN %.1fs" % [wave + 1, maxf(break_clock, 0.0)]
 	hud.text = "%s     /     %d REMAINING     /     BEST %02d" % [status, remaining_to_spawn + enemies.get_child_count(), best_wave]
 	build_label.text = "FIREBALL   %.1f damage   /   %.2fs cast   /   %d projectile%s%s" % [player.damage, player.effective_interval(), player.projectile_count, "s" if player.projectile_count != 1 else "", "   /   SECOND WIND" if player.haste_remaining > 0 else ""]
+	var names: PackedStringArray = []
+	for card in mechanic_cards:
+		names.append(UPGRADE_TITLES[card])
+	cards_label.text = " / ".join(names)
+	if player.overcharge_enabled:
+		cards_label.text += "   [READY]" if player.overcharge_ready else "   [%d/4 hits]" % player.overcharge_hits
 	wallet_label.text = "ECHOES  %d   /   RUN REWARD  %d" % [progress.echoes, predicted_reward()]
 	var scepter_name: String = "Empty" if equipment.scepter.is_empty() else CATALOG.ITEMS[equipment.scepter].name
 	var book_name: String = "Empty" if equipment.book.is_empty() else CATALOG.ITEMS[equipment.book].name
@@ -804,6 +879,7 @@ func create_interface() -> void:
 	health_bar.add_theme_stylebox_override("fill", fill)
 	ui.add_child(health_bar)
 	build_label = add_label(ui, "", Vector2(365, 744), 15, Color("d4c6ad"))
+	cards_label = add_label(ui, "", Vector2(365, 722), 13, Color("baf7ff"))
 	add_label(ui, "WASD Move / MOUSE Aim / LMB Cast / I Equipment / ESC Pause" + (" / F1 Dev" if OS.is_debug_build() else ""), Vector2(365, 770), 13, Color("8995a5"))
 	var shade := ColorRect.new()
 	shade.color = Color(0.025, 0.035, 0.06, 0.88)

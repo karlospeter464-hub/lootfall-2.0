@@ -49,6 +49,29 @@ func capture() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--output="):
 			output = argument.trim_prefix("--output=")
+		elif argument == "--view=ce3_cards":
+			game.state = game.State.UPGRADE
+			game.show_overlay("CHOOSE YOUR UPGRADE", "CE3 mechanics preview — each card can be chosen once per run.")
+			game.offered_cards.assign([3, 4, 5])
+			game.refresh_upgrade_cards()
+			paused = true
+		elif argument == "--view=ce3_combat":
+			game.start_card_test(2)
+			game.set_process(false)
+			game.player.controls_enabled = false
+			game.mechanic_cards.assign([3, 4, 5])
+			game.equipment.book = "cinder_codex"
+			game.update_build()
+			game.player.overcharge_ready = true
+			for enemy in game.enemies.get_children():
+				enemy.set_physics_process(false)
+			game.player.cooldown = 0
+			game.player.attack(Vector2.RIGHT)
+			for shot in game.projectiles.get_children():
+				shot.position += shot.direction * 90
+				shot.set_physics_process(false)
+			game.player.overcharge_ready = true
+			game.queue_redraw()
 		elif argument == "--view=upgrade":
 			for enemy in game.enemies.get_children():
 				game.enemies.remove_child(enemy)

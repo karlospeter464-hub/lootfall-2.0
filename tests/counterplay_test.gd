@@ -201,7 +201,7 @@ func run() -> void:
 	dev.reset_defaults()
 	check(dev.save_profile(), "CE1 profile saves")
 	var profile: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(profile.version == 7 and profile.values.size() == 71, "Profile seven has all 71 values")
+	check(profile.version == 8 and profile.values.size() == 74, "Profile eight has all 74 values")
 	profile.version = 5
 	for field in dev.FIELDS:
 		if dev.field_version(field) > 5:

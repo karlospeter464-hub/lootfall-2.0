@@ -2,6 +2,12 @@
 
 Open `project.godot` in Godot 4.7 and press **F5**. Main scene: `scenes/arena.tscn`. Game UI and code are English.
 
+## CE3: Build Discovery & Card Synergies
+
+Each wave/boss card choice now draws up to three different valid cards from six. Ember Power, Quick Casting and Fire Fan remain repeatable within their limits. Ember Burst (direct-kill explosion), Piercing Flame (two different direct targets) and Overcharge (four direct hits charge the next main shot for +75%) can each be selected once per run. All reset on restart. No build weighting, guaranteed synergy or new permanent unlocks.
+
+See [CE3_PLAYTEST.md](CE3_PLAYTEST.md) for exact interactions, three isolated F1 test builds, tuning and the natural three-to-five-run acceptance guide. CE3 does not address Seer encounter weighting or the Champion's missing gap closer. Those remain separate combat planning topics.
+
 ## Town and permanent skill tree
 
 The game starts in **Emberhaven**. Choose **Start Run**. Death or a prototype safety stop pays Echoes once, then **Return to Town** opens the city menu. **Awaken the Skill Tree** lets you spend Echoes on permanent talents before your next attempt. Town is a menu, not a walkable map.
@@ -22,7 +28,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 - From wave 2, **Cinder Seers** join the melee enemies: a blue diamond silhouette keeps its distance and marks a fixed ground position in pink. Leave the circle during the 1.4-second warning, or defeat the seer before its attack resolves. The position does not track you after marking. Default recovery is 2.0 seconds, impact radius 38, and damage uses the enemy damage value. Inventory/pause/freeze stop the warning. At most two seers are active; the overall default cap is now 12. Every fourth spawn from wave 2 is a seer when its cap permits; later waves and recovery phases vary role cadence under the same active caps.
 - **WASD:** move. **Mouse:** aim. **Hold left mouse button:** cast fireballs. **I:** equipment. **Escape:** close the current window or pause/resume. The pause menu also has an Equipment button.
-- Ascend until death, with a configurable technical safety cap (default 100). Cards repeat at 2/4/5 in each five-wave block: 2, 4, 5, 7, 9, 10, etc. Wave 5/15/etc. hosts Rune Champion; 10/20/etc. hosts Ash Prophet. Boss cards use the same three mechanics with distinct presentation. No regular six-wave victory.
+- Ascend until death, with a configurable technical safety cap (default 100). Cards repeat at 2/4/5 in each five-wave block: 2, 4, 5, 7, 9, 10, etc. Wave 5/15/etc. hosts Rune Champion; 10/20/etc. hosts Ash Prophet. Boss cards draw from the same six-card pool with distinct presentation. No regular six-wave victory.
 - Walk over loot to put it in your **eight-field bag**. Picking up does not activate an item. **I** pauses combat and shows item descriptions, current equipment and a before/after comparison. Select a bag item and **Equip selected** to swap its matching **scepter/book** slot. Unequip returns it to the bag. Put on the ground keeps it nearby; a full bag leaves ground loot available, and a full ground cap refuses a drop without deleting your item.
 - Each eligible kill first has a **10% chance to drop an item**. A separate cascade then checks **Legendary 2% → Rare 25% → Magic 50% → Normal remainder**, stopping at the first eligible success. These are independent conditional checks, not flat shares. The item is chosen from the winning rarity pool. Ground cap 16 still applies; uncollected loot stays between waves.
 - Fixed pools: **Normal — Ember Scepter** (white), **Magic — Swift Scepter** (blue), **Rare — Focus Grimoire** (gold), **Legendary — Cinder Codex** (orange). Inventory inspection identifies rarity in text as well as color. Effects are unchanged; these are fixed item types, not randomized quality variants.
@@ -37,14 +43,14 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 **F1** opens/closes the console; **Escape** closes it. Gameplay pauses while it is open. Closing preserves an existing pause, upgrade choice or result screen. SpinBox fields accept keyboard entry and arrow controls; each field shows when it applies.
 
-71 settings are split into tabs:
+74 settings are split into tabs:
 
 | Tab | Adjustable values |
 | --- | --- |
 | Player | Movement, maximum health, base damage, cast interval, hit protection |
 | Waves | Safety cap, first-wave enemies/growth, normal budget ceiling, active cap, spawn interval/decay, safe spawn distance, break, HP scale/damage growth, boss HP and escort budget |
 | Enemies | Base health/speed/damage, health/speed growth per wave, seer cap/warning/recovery/radius/HP/interruption; guardian first wave/cadence/cap/HP/speed/flat armor/minimum damage |
-| Combat & loot | Projectile speed/lifetime/spread, all three card strengths, separate item chance and Legendary/Rare/Magic checks, pickup radius, ground cap, all four item effects |
+| Combat & loot | Projectile speed/lifetime/spread, existing card strengths, Burst radius/damage and Overcharge bonus, separate item chance and Legendary/Rare/Magic checks, pickup radius, ground cap, all four item effects |
 | Rewards & tools | Early Echoes tiers, late-wave reward/growth, isolated wave jump; invulnerability, freeze enemies, restore HP, force a physical Codex or selected item drop, defeat active enemies, apply RNG seed |
 | Skill tree | Five tier prices, small/notable bonuses for all paths, First Spark, Renewal and Second Wind values/duration |
 
@@ -54,7 +60,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 **Save profile / Load profile:** Balancing values are saved separately from game progress. Profiles load manually; restarting the application restores Inspector defaults until you load your profile. Loading validates every value and known key before applying any of them. Profiles do not contain currency, current health, items, RNG state or test switches.
 
-New profiles use version 7 with 71 settings. Versions 1/2/3/4/5/6 (28/33/48/52/54/63 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. **Legacy probability numbers now use the new model:** the previous Codex chance becomes the Legendary check per item, and previous other-gear chance becomes the total item chance. The load status explicitly calls out this changed basis; old profiles do not restore the old drop algorithm. Rare/Magic use startup defaults if absent. F1 metrics show conditional-derived shares per item and chances per eligible kill, adjusted for the Codex limit.
+New profiles use version 8 with 74 settings. Versions 1/2/3/4/5/6/7 (28/33/48/52/54/63/71 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. **Legacy probability numbers now use the new model:** the previous Codex chance becomes the Legendary check per item, and previous other-gear chance becomes the total item chance. The load status explicitly calls out this changed basis; old profiles do not restore the old drop algorithm. Rare/Magic use startup defaults if absent. F1 metrics show conditional-derived shares per item and chances per eligible kill, adjusted for the Codex limit.
 
 Old numeric wave limits are preserved as safety stops; Reset defaults restores the new 100-wave ascent baseline. Tree effect tuning affects active talents live; ownership changes apply next run. Prices affect new purchases, not refunds. Defaults never erase owned talents or paid prices. Seer values affect new spawns; a zero seer cap disables new seers without deleting existing enemies. Old profiles can restore their previous overall enemy cap.
 
@@ -83,12 +89,13 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 & $godotExe --headless --path . --script res://tests/rarity_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/counterplay_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/ascent_test.gd -- --test-mode
+& $godotExe --headless --path . --script res://tests/card_synergy_test.gd -- --test-mode
 & $godotExe --headless --path . --quit-after 120 -- --test-mode
 ```
 
 The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 64 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent = **603 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six changed gameplay scripts passed Godot MCP `script_check`; native CE2 boss/announcement/card previews were inspected. These are automated checks, not human balance acceptance.
+Current verification: 64 arena + 54 loot/console + 46 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy = **731 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Four CE3 gameplay scripts passed Godot MCP `script_check`; native CE3 card/combat previews were inspected. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 
@@ -96,7 +103,7 @@ For staged engine previews:
 & $godotExe --path . --script res://tests/capture_preview.gd -- --test-mode --view=loot --output=C:/path/to/preview.png
 ```
 
-Views: `ce2_boss5`, `ce2_boss10`, `ce2_intro`, `ce2_reward`, `ce2_metrics`, `ce1_feedback`, `ce1`, `ce1_tools`, `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
+Views: `ce3_cards`, `ce3_combat`, `ce2_boss5`, `ce2_boss10`, `ce2_intro`, `ce2_reward`, `ce2_metrics`, `ce1_feedback`, `ce1`, `ce1_tools`, `rarity_loot`, `rarity_metrics`, `encounter`, `town`, `skilltree`, `tree_tuning`, `inventory`, `loot`, `console`, `tuning`, `upgrade`, `result`; no view argument captures the arena. Town/tree previews use staged test currency and purchases; encounter stages locked warning circles; rarity_loot forces all four items. These are reproducible test arrangements, not human playthroughs.
 
 ## Manual acceptance
 

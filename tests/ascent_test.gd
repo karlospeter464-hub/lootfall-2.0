@@ -86,10 +86,12 @@ func run() -> void:
 		check(game.completed_waves == number and game.progress.echoes == 0, "Wave %d completes once without interim currency" % number)
 		if game.card_wave(number):
 			choices.append(number)
-			check(game.state == game.State.UPGRADE and game.buttons.get_child_count() == 3, "Three existing mechanics offered after card wave %d" % number)
+			check(game.state == game.State.UPGRADE and game.buttons.get_child_count() == 3, "Three random valid mechanics offered after card wave %d" % number)
 			check(game.overlay_title.text.contains("BOSS") == game.is_boss_wave(number), "Boss cards have distinct presentation")
+			game.offered_cards.assign([0])
 			game.choose_upgrade(0)
 			var count: int = game.upgrades_chosen
+			game.offered_cards.assign([0])
 			game.choose_upgrade(0)
 			check(game.upgrades_chosen == count, "Stale card action cannot grant another upgrade")
 		check(game.state == game.State.BETWEEN_WAVES, "Ascent continues after wave %d" % number)
@@ -139,6 +141,7 @@ func run() -> void:
 	await drain_wave()
 	game.complete_wave()
 	check(game.state == game.State.UPGRADE, "Boss plus escorts can be cleared with total cap one")
+	game.offered_cards.assign([0])
 	game.choose_upgrade(0)
 	game.enemy_limit = 12
 	game.start_ascent_test(5)
@@ -174,9 +177,12 @@ func run() -> void:
 	game.player.haste_remaining = 3
 	check(game.player.effective_interval() == 0.08 and game.player.projectile_count == 9 and is_finite(game.player.damage), "Repeated cards and haste respect technical limits")
 	game.state = game.State.UPGRADE
+	game.mechanic_cards.assign([3, 4, 5])
+	game.roll_upgrade_cards()
 	game.refresh_upgrade_cards()
-	check(game.buttons.get_child(1).disabled and game.buttons.get_child(2).disabled and not game.buttons.get_child(0).disabled, "Saturated cards are disabled and Power remains usable")
+	check(game.offered_cards == [0] and game.buttons.get_child_count() == 1, "Saturated cards are excluded and Power remains usable")
 	var before: int = game.upgrades_chosen
+	game.offered_cards.assign([2])
 	game.choose_upgrade(2)
 	check(game.upgrades_chosen == before, "Saturated card cannot be selected through a stale signal")
 	game.state = game.State.FIGHTING
@@ -207,7 +213,7 @@ func run() -> void:
 	dev.reset_defaults()
 	dev.save_profile()
 	var profile: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(profile.version == 7 and profile.values.size() == 71, "New balancing profile includes all 71 values")
+	check(profile.version == 8 and profile.values.size() == 74, "New balancing profile includes all 74 values")
 	profile.version = 6
 	for field in dev.FIELDS:
 		if dev.field_version(field) > 6:

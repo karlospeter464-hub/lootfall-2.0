@@ -104,7 +104,7 @@ func run() -> void:
 	game.settle_reward()
 	check(game.progress.echoes == 60, "A save call during a run cannot pay out")
 	var dev = game.dev_console
-	check(dev.controls.size() == 71, "Every supported setting has a console control")
+	check(dev.controls.size() == 74, "Every supported setting has a console control")
 	var original_speed: float = game.player.move_speed
 	check(dev.apply_setting("player.move_speed", 350) and game.player.move_speed == 350, "Movement tuning reaches the real player")
 	check(not dev.apply_setting("arena.enemy_limit", -1), "Negative caps are rejected")
@@ -114,10 +114,12 @@ func run() -> void:
 	dev.controls["player.base_damage"].value = 20
 	check(game.player.damage == 20, "A real SpinBox signal changes actual fireball damage")
 	game.state = game.State.UPGRADE
+	game.offered_cards.assign([0])
 	game.choose_upgrade(0)
 	dev.apply_setting("player.base_damage", 30)
 	check(is_equal_approx(game.player.damage, 40.5), "Tuning preserves existing upgrade multipliers")
 	game.state = game.State.UPGRADE
+	game.offered_cards.assign([2])
 	game.choose_upgrade(2)
 	dev.apply_setting("arena.upgrade_projectiles", 3)
 	check(game.player.projectile_count == 4, "Projectile-card tuning updates the active build")

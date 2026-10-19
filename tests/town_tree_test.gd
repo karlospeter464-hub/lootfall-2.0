@@ -46,7 +46,7 @@ func run() -> void:
 	var dev = game.dev_console
 	var store = game.progress
 	check(game.state == game.State.TOWN and paused and town.screen.visible, "The application starts in town")
-	check(town.node_buttons.size() == 15 and dev.controls.size() == 71, "All 15 talents and 71 balance controls are present")
+	check(town.node_buttons.size() == 15 and dev.controls.size() == 74, "All 15 talents and 74 balance controls are present")
 	key(KEY_I)
 	await process_frame
 	check(not game.inventory_panel.is_open and game.bag_used() == 0, "Town cannot open run equipment")
@@ -168,6 +168,7 @@ func run() -> void:
 	game.remaining_to_spawn = 0
 	game.complete_wave()
 	check(game.player.health == 125 and game.state == game.State.UPGRADE and paused, "Renewal clamps to max health and preserves the wave-two card event")
+	game.offered_cards.assign([0])
 	game.choose_upgrade(0)
 	game.finish_run(false)
 	game.return_to_town()

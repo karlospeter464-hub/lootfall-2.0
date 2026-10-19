@@ -1,5 +1,7 @@
 # CE2 — Ascent & Boss Milestones: manual playtest
 
+CE3 retains this ascent loop but replaces fixed card offers with a six-card random pool. Current card rules, 74 F1 settings/profile v8 and build fixtures are in [CE3_PLAYTEST.md](CE3_PLAYTEST.md). Counts below describe the original CE2 package.
+
 This is a test guide, not a record of completed human playtests. The target is roughly 15–20 minutes per typical run, not a countdown. Strong builds may survive longer. Start each normal attempt at wave 1.
 
 ## Launch and baseline

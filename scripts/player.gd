@@ -28,6 +28,10 @@ var arena_bounds: Rect2 = Rect2(64, 128, 1152, 592)
 var controls_enabled: bool = true
 var invulnerable: bool = false
 var spread_angle: float = 0.19
+var main_shot: bool = true
+var overcharge_enabled: bool = false
+var overcharge_hits: int = 0
+var overcharge_ready: bool = false
 
 func _ready() -> void:
 	reset_run()
@@ -43,6 +47,10 @@ func reset_run() -> void:
 	protection = 0.0
 	invulnerable = false
 	velocity = Vector2.ZERO
+	overcharge_enabled = false
+	overcharge_hits = 0
+	overcharge_ready = false
+	main_shot = true
 	health_changed.emit(health, max_health)
 	queue_redraw()
 
@@ -74,7 +82,18 @@ func attack(direction: Vector2) -> void:
 		if index > 0:
 			spread = ceilf(index / 2.0) * spread_angle * (-1.0 if index % 2 == 1 else 1.0)
 		var shot_direction: Vector2 = direction.normalized().rotated(spread)
+		main_shot = index == 0
 		cast.emit(global_position + shot_direction * 25, shot_direction, damage)
+	main_shot = true
+
+func record_direct_hit() -> void:
+	if not overcharge_enabled or overcharge_ready:
+		return
+	overcharge_hits += 1
+	if overcharge_hits >= 4:
+		overcharge_hits = 0
+		overcharge_ready = true
+	queue_redraw()
 
 func take_damage(amount: float) -> void:
 	if amount <= 0.0 or protection > 0.0 or health <= 0.0 or (OS.is_debug_build() and invulnerable):
@@ -102,6 +121,10 @@ func _draw() -> void:
 	draw_rect(Rect2(-24, 1, 13, 15), Color("b8a688"))
 	draw_line(Vector2(-18, 2), Vector2(-18, 15), Color("4e5263"), 2)
 	draw_arc(Vector2.ZERO, 25, aim.angle() - 0.25, aim.angle() + 0.25, 10, Color("f0ca88"), 2)
+	if overcharge_enabled:
+		draw_arc(Vector2.ZERO, 30, -PI / 2, -PI / 2 + TAU * (1.0 if overcharge_ready else overcharge_hits / 4.0), 24, Color("baf7ff"), 3)
+		if overcharge_ready:
+			draw_circle(hand, 9, Color("baf7ff"))
 
 func draw_ellipse_shadow() -> void:
 	draw_set_transform(Vector2(0, 18), 0, Vector2(1.0, 0.35))
