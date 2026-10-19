@@ -2,6 +2,12 @@
 
 Open `project.godot` in Godot 4.7 and press **F5**. Main scene: `scenes/arena.tscn`. Game UI and code are English.
 
+## Art Vertical Slice 01 — first anime mage
+
+The existing player now uses the owner's red-cloaked, white-haired illustration as a Sprite2D, with true alpha, linear mipmaps, a foot pivot and subtle breathing/cast/hurt feedback. Open in Godot and press **F5**. Disable **Player → Use Artwork** before running to restore the old body. Visual size/pivot live on the Artwork child; gameplay, collision and projectile origins remain unchanged. See [asset notes](assets/art/characters/apprentice/README.md) for source/hash, scale and perspective limits. The single frontal pose stays upright and is a prototype, not a final top-down animation set.
+
+Godot 4.7.2: **917 checks, no failures** (898 previous + 19 player-art checks), three MCP script checks and four native D3D12 captures. The live capture uses actual movement and two direct projectile hits; before/after share a controlled 12-enemy arrangement, and the boss capture is a staged Champion telegraph. Visual inspection is not a full human run or final style acceptance. This change updates the local Godot project; the previously packaged Windows v0.1 ZIP remains the older pre-art release. No new export or push.
+
 ## First external Windows playtest build
 
 A standalone **Windows x86_64 release v0.1** is packaged locally outside Git, with CE5 gameplay frozen at `00e378d`. See [WINDOWS_PLAYTEST.md](WINDOWS_PLAYTEST.md) for the exact ZIP path, manifest, checksum, export reproduction and smoke-test limits. `export_presets.cfg` defines Windows Desktop; templates/build artifacts/test data are not committed. No new gameplay or balance changes. Source regression: 898 checks; exported-PCK regression under the test runtime: 688 checks; package audit: 6 checks, all passing. Native EXE start/F1/run/combat/death/town observed; full native progression acceptance remains open. No upload or GitHub push.
@@ -111,12 +117,13 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 & $godotExe --headless --path . --script res://tests/combat_polish_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/item_synergy_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/early_progression_test.gd -- --test-mode
+& $godotExe --headless --path . --script res://tests/player_art_test.gd -- --test-mode
 & $godotExe --headless --path . --quit-after 120 -- --test-mode
 ```
 
 For parallel suites use a different APPDATA subdirectory per process to avoid MCP registry file contention. The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 64 arena + 54 loot/console + 50 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish + 65 item synergy + 63 early progression = **898 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six CE5 gameplay/UI scripts passed Godot MCP `script_check`; four native CE5 town/tree previews were inspected. See CE5_PLAYTEST.md for current root and layout coverage. These are automated checks, not human balance acceptance.
+Current verification: 64 arena + 54 loot/console + 50 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish + 65 item synergy + 63 early progression + 19 player art = **917 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six CE5 gameplay/UI scripts passed Godot MCP `script_check`; four native CE5 town/tree previews were inspected. See CE5_PLAYTEST.md for current root and layout coverage. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 

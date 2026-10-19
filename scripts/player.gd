@@ -13,6 +13,12 @@ signal cast(origin: Vector2, direction: Vector2, damage: float)
 @export_range(1, 100, 1) var base_damage: float = 14.0
 @export_range(0.08, 2.0, 0.01) var base_cast_interval: float = 0.36
 @export_range(0.1, 2.0, 0.05) var hit_protection: float = 0.7
+@export var use_artwork: bool = true
+
+@onready var artwork: Sprite2D = get_node_or_null("Artwork")
+var visual_clock: float = 0.0
+var cast_flash: float = 0.0
+var artwork_base_scale: Vector2 = Vector2.ONE
 
 var health: float
 var health_limit: float
@@ -40,6 +46,8 @@ var momentum_bonus: float = 0.0
 var momentum_duration: float = 3.0
 
 func _ready() -> void:
+	if is_instance_valid(artwork):
+		artwork_base_scale = artwork.scale
 	reset_run()
 
 func reset_run() -> void:
@@ -60,6 +68,9 @@ func reset_run() -> void:
 	kindling_remaining = 0.0
 	momentum_hits = 0
 	momentum_remaining = 0.0
+	visual_clock = 0.0
+	cast_flash = 0.0
+	update_artwork(0.0)
 	health_changed.emit(health, max_health)
 	queue_redraw()
 
@@ -67,6 +78,7 @@ func _physics_process(delta: float) -> void:
 	cooldown = maxf(0.0, cooldown - delta)
 	protection = maxf(0.0, protection - delta)
 	haste_remaining = maxf(0.0, haste_remaining - delta)
+	update_artwork(delta)
 	kindling_remaining = maxf(0.0, kindling_remaining - delta)
 	momentum_remaining = maxf(0.0, momentum_remaining - delta)
 	if controls_enabled and health > 0.0:
@@ -93,6 +105,7 @@ func attack(direction: Vector2) -> void:
 	if cooldown > 0.0 or health <= 0.0 or direction.is_zero_approx():
 		return
 	cooldown = effective_interval()
+	cast_flash = 0.12
 	for index in mini(projectile_count, MAX_PROJECTILES_PER_CAST):
 		# Preserve the aimed shot and alternate additional shots on either side.
 		var spread: float = 0.0
@@ -137,6 +150,27 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, 34, 0, TAU, 32, Color("ffb057"), 3)
 	if momentum_remaining > 0:
 		draw_arc(Vector2(0, 18), 28, 0, PI, 18, Color("84b8db"), 4)
+	if not is_instance_valid(artwork) or not artwork.visible:
+		draw_placeholder()
+	if cast_flash > 0 and is_instance_valid(artwork) and artwork.visible:
+		draw_circle(aim * 25, 5 + cast_flash * 35, Color(1, 0.75, 0.4, cast_flash / 0.12))
+	draw_arc(Vector2.ZERO, 25, aim.angle() - 0.25, aim.angle() + 0.25, 10, Color("f0ca88"), 2)
+	if overcharge_enabled:
+		draw_arc(Vector2.ZERO, 30, -PI / 2, -PI / 2 + TAU * (1.0 if overcharge_ready else overcharge_hits / 4.0), 24, Color("baf7ff"), 3)
+		if overcharge_ready:
+			draw_circle(aim * 20, 9, Color("baf7ff"))
+
+func update_artwork(delta: float) -> void:
+	cast_flash = maxf(0.0, cast_flash - delta)
+	if not is_instance_valid(artwork):
+		return
+	artwork.visible = use_artwork and artwork.texture != null
+	visual_clock += delta
+	# A tiny breath scales around the foot pivot; the gameplay body never moves.
+	artwork.scale = artwork_base_scale * Vector2(1.0, 1.0 + sin(visual_clock * 2.5) * 0.006)
+	artwork.self_modulate = Color(1.6, 1.35, 1.2) if protection > 0 else Color.WHITE
+
+func draw_placeholder() -> void:
 	var robe: Color = Color("498cbb") if protection <= 0.0 else Color("e8cab0")
 	draw_colored_polygon(PackedVector2Array([Vector2(-16, 16), Vector2(-11, -8), Vector2(0, -20), Vector2(12, -8), Vector2(17, 16), Vector2(0, 23)]), robe.darkened(0.3))
 	draw_circle(Vector2(0, -5), 12, robe)
@@ -148,13 +182,8 @@ func _draw() -> void:
 	draw_circle(hand - aim.orthogonal() * 14, 5, Color("f8b268"))
 	draw_rect(Rect2(-24, 1, 13, 15), Color("b8a688"))
 	draw_line(Vector2(-18, 2), Vector2(-18, 15), Color("4e5263"), 2)
-	draw_arc(Vector2.ZERO, 25, aim.angle() - 0.25, aim.angle() + 0.25, 10, Color("f0ca88"), 2)
-	if overcharge_enabled:
-		draw_arc(Vector2.ZERO, 30, -PI / 2, -PI / 2 + TAU * (1.0 if overcharge_ready else overcharge_hits / 4.0), 24, Color("baf7ff"), 3)
-		if overcharge_ready:
-			draw_circle(hand, 9, Color("baf7ff"))
 
 func draw_ellipse_shadow() -> void:
-	draw_set_transform(Vector2(0, 18), 0, Vector2(1.0, 0.35))
+	draw_set_transform(Vector2.ZERO if is_instance_valid(artwork) and artwork.visible else Vector2(0, 18), 0, Vector2(1.0, 0.35))
 	draw_circle(Vector2.ZERO, 23, Color(0, 0, 0, 0.4))
 	draw_set_transform(Vector2.ZERO)

@@ -15,7 +15,11 @@ func capture() -> void:
 	game.set_process(false)
 	game.player.controls_enabled = false
 	game.rng.seed = 42
-	var feedback_view: bool = OS.get_cmdline_user_args().has("--view=ce1_feedback")
+	var art_view: bool = OS.get_cmdline_user_args().has("--view=art_mage") or OS.get_cmdline_user_args().has("--view=art_before")
+	var feedback_view: bool = OS.get_cmdline_user_args().has("--view=ce1_feedback") or art_view
+	if art_view:
+		game.player.use_artwork = not OS.get_cmdline_user_args().has("--view=art_before")
+		game.player.update_artwork(0)
 	if feedback_view or OS.get_cmdline_user_args().has("--view=ce1") or OS.get_cmdline_user_args().has("--view=ce1_tools"):
 		game.wave = 2
 	elif OS.get_cmdline_user_args().has("--view=encounter"):
@@ -49,6 +53,33 @@ func capture() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--output="):
 			output = argument.trim_prefix("--output=")
+		elif argument == "--view=art_live":
+			game.start_counterplay_test(2, 1)
+			game.notice_label.text = ""
+			game.remaining_to_spawn = 2
+			for index in 2:
+				game.spawn_enemy("chaser")
+				game.enemies.get_child(index + 1).position = Vector2(850, 280 + index * 260)
+			game.remaining_to_spawn = 0
+			Input.action_press("move_up")
+			for index in 18:
+				await physics_frame
+			Input.action_release("move_up")
+			game.player.controls_enabled = false
+			for index in 60:
+				game.player.aim = game.player.position.direction_to(game.enemies.get_child(0).position)
+				game.player.attack(game.player.aim)
+				await physics_frame
+			if game.shots_hit == 0 or game.player.position.y >= 420:
+				push_error("Art live preview requires real movement and a real projectile hit.")
+				quit(1)
+				return
+			game.player.controls_enabled = false
+			for container in [game.enemies, game.projectiles]:
+				for child in container.get_children():
+					child.set_physics_process(false)
+			game.player.set_physics_process(false)
+			print("ART LIVE: moved to ", game.player.position, "; actual direct hits ", game.shots_hit)
 		elif argument == "--view=ce4_inventory":
 			game.start_item_test("hunter_scepter", true)
 			game.equipment.book = "phoenix_grimoire"
