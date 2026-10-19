@@ -68,7 +68,7 @@ func run() -> void:
 	check(seer.charge_left == remaining, "F1 enemy freeze also freezes pending ranged attacks")
 	seer.frozen = false
 	await frames(30)
-	check(game.player.health == hp - game.enemy_damage and not seer.charging, "Staying in the marked circle takes a single configured hit")
+	check(is_equal_approx(game.player.health, hp - seer.contact_damage) and not seer.charging, "Staying in the marked circle takes a single wave-scaled hit")
 	var after: float = game.player.health
 	await frames(20)
 	check(game.player.health == after, "The attack does not repeatedly damage during recovery")

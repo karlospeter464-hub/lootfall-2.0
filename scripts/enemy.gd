@@ -14,6 +14,7 @@ var flash: float = 0.0
 var knockback: Vector2 = Vector2.ZERO
 var dead: bool = false
 var frozen: bool = false
+var boss_name: String = ""
 
 func _ready() -> void:
 	health = max_health
@@ -60,3 +61,5 @@ func _draw() -> void:
 	if health < max_health:
 		draw_rect(Rect2(-17, -28, 34, 4), Color("281f2b"))
 		draw_rect(Rect2(-17, -28, 34 * health / max_health, 4), Color("df9194"))
+	if not boss_name.is_empty():
+		draw_polyline(PackedVector2Array([Vector2(-19, -30), Vector2(-21, -39), Vector2(-9, -34), Vector2(0, -44), Vector2(9, -34), Vector2(21, -39), Vector2(19, -30)]), Color("ffd18c"), 3, true)

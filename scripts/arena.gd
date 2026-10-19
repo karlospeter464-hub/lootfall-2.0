@@ -14,7 +14,7 @@ const TOWN_PANEL = preload("res://scripts/town_panel.gd")
 const BOUNDS := Rect2(64, 128, 1152, 592)
 const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan"]
 
-enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN }
+enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTRO }
 
 @export_range(1, 50, 1) var first_wave_enemies: int = 8
 @export_range(0, 20, 1) var enemies_per_wave: int = 4
@@ -24,7 +24,7 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN }
 @export_range(0.5, 6, 0.1) var ranged_interval: float = 2.0
 @export_range(20, 100, 1) var ranged_radius: float = 38.0
 @export_range(1, 10, 0.5) var seer_health_multiplier: float = 6.0
-@export_range(0, 12, 1) var seer_interrupt_hits: int = 5
+@export_range(0, 12, 1) var seer_interrupt_hits: int = 3
 @export_range(3, 100, 1) var guardian_first_wave: int = 3
 @export_range(1, 30, 1) var guardian_every: int = 6
 @export_range(0, 2, 1) var guardian_limit: int = 2
@@ -39,7 +39,15 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN }
 @export_range(1, 100, 1) var enemy_damage: float = 14.0
 @export_range(0, 50, 1) var enemy_health_growth: float = 3.0
 @export_range(0, 30, 1) var enemy_speed_growth: float = 5.0
-@export_range(5, 100, 1) var total_waves: int = 6
+@export_range(5, 100, 1) var total_waves: int = 100
+@export_range(1, 1.35, 0.01) var ascent_health_scale: float = 1.14
+@export_range(0, 0.1, 0.01) var ascent_damage_growth: float = 0.04
+@export_range(1, 60, 1) var ascent_budget_cap: int = 28
+@export_range(0, 0.1, 0.01) var ascent_spawn_decay: float = 0.03
+@export_range(1, 15, 0.5) var boss_health_multiplier: float = 6.0
+@export_range(0, 10, 1) var boss_escorts: int = 4
+@export_range(0, 1000, 1) var echoes_after_six: int = 25
+@export_range(0, 100, 1) var echoes_after_six_growth: int = 2
 @export_range(0.1, 10, 0.1) var intermission: float = 1.5
 @export_range(0, 1, 0.01) var upgrade_damage_bonus: float = 0.35
 @export_range(0, 0.8, 0.01) var upgrade_cast_reduction: float = 0.2
@@ -128,6 +136,17 @@ var drops_created: int = 0
 var enemies_frozen: bool = false
 var loot_label: Label
 var wallet_label: Label
+var boss_label: Label
+var boss_bar: ProgressBar
+var boss
+var boss_spawned: bool = false
+var wave_budget: int = 0
+var wave_seconds: float = 0.0
+var wave_damage_start: float = 0.0
+var wave_roles: Dictionary = {}
+var wave_summaries: Array[Dictionary] = []
+var run_started_usec: int = 0
+var run_ended_usec: int = 0
 
 func _ready() -> void:
 	if OS.get_cmdline_user_args().has("--test-mode"):
@@ -169,16 +188,23 @@ func _process(delta: float) -> void:
 	effects = effects.filter(func(effect: Dictionary) -> bool: return effect.life > 0.0)
 	queue_redraw()
 	if state == State.FIGHTING:
+		wave_seconds += delta
 		spawn_clock -= delta
 		if remaining_to_spawn > 0 and spawn_clock <= 0 and enemies.get_child_count() < enemy_limit:
 			spawn_enemy()
-			spawn_clock = spawn_interval
+			spawn_clock = wave_settings(wave).spawn_interval
 		if remaining_to_spawn == 0 and enemies.get_child_count() == 0:
 			complete_wave()
 	elif state == State.BETWEEN_WAVES:
 		break_clock -= delta
 		if break_clock <= 0:
 			begin_wave()
+	elif state == State.BOSS_INTRO:
+		break_clock -= delta
+		if break_clock <= 0:
+			overlay.hide()
+			state = State.FIGHTING
+			player.controls_enabled = true
 	update_hud()
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -189,7 +215,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and not event.is_echo():
 		if state == State.PAUSED:
 			resume_run()
-		elif state in [State.FIGHTING, State.BETWEEN_WAVES]:
+		elif state in [State.FIGHTING, State.BETWEEN_WAVES, State.BOSS_INTRO]:
 			pause_run()
 		get_viewport().set_input_as_handled()
 
@@ -224,6 +250,12 @@ func restart_run() -> void:
 	quick_upgrades = 0
 	fan_upgrades = 0
 	elapsed = 0.0
+	run_started_usec = Time.get_ticks_usec()
+	run_ended_usec = 0
+	wave_seconds = 0.0
+	wave_summaries.clear()
+	boss = null
+	boss_spawned = false
 	damage_dealt = 0.0
 	damage_taken = 0.0
 	shots_fired = 0
@@ -270,11 +302,54 @@ func refund_talents() -> bool:
 	return state == State.TOWN and progress.refund_all()
 
 func begin_wave() -> void:
+	if wave >= total_waves:
+		finish_run(true)
+		return
 	wave += 1
 	best_wave = maxi(best_wave, wave)
-	remaining_to_spawn = first_wave_enemies + (wave - 1) * enemies_per_wave
+	wave_budget = wave_settings(wave).budget
+	remaining_to_spawn = wave_budget
+	wave_seconds = 0.0
+	wave_damage_start = damage_taken
+	wave_roles = {"chaser": 0, "seer": 0, "guardian": 0, "boss": 0}
+	boss = null
+	boss_spawned = false
 	spawn_clock = 0.0
 	state = State.FIGHTING
+	if is_boss_wave(wave):
+		state = State.BOSS_INTRO
+		break_clock = 2.0
+		player.controls_enabled = false
+		show_overlay("BOSS APPROACHING", "%s\nWave %d — defeat the boss and its escort." % [boss_title(wave), wave])
+	update_hud()
+
+func is_boss_wave(number: int) -> bool:
+	return number > 0 and number % 5 == 0
+
+func boss_title(number: int) -> String:
+	return "ASH PROPHET" if number % 10 == 0 else "RUNE CHAMPION"
+
+func card_wave(number: int) -> bool:
+	return number > 0 and number % 5 in [0, 2, 4]
+
+func wave_settings(number: int) -> Dictionary:
+	var level: int = clampi(number, 1, 100)
+	var recovery: float = 0.8 if level > 5 and level % 5 == 1 else 1.0
+	var health: float = (enemy_health + (mini(level, 6) - 1) * enemy_health_growth) * pow(ascent_health_scale, maxi(0, level - 6)) * recovery
+	return {
+		"health": clampf(health, 1, 1000000),
+		"damage": clampf(enemy_damage * pow(1 + ascent_damage_growth, level - 1) * recovery, 1, 200),
+		"speed": clampf(enemy_speed + (level - 1) * enemy_speed_growth, 10, 200),
+		"budget": 1 + boss_escorts if is_boss_wave(level) else maxi(1, mini(ascent_budget_cap, ceili((first_wave_enemies + (level - 1) * enemies_per_wave) * recovery))),
+		"spawn_interval": maxf(0.18, spawn_interval * pow(1 - ascent_spawn_decay, level - 1) / recovery),
+		"seer_every": maxi(2, 4 - (level - 1) / 10) + (2 if recovery < 1 else 0),
+		"guardian_every": maxi(3, guardian_every - (level - 1) / 10) + (2 if recovery < 1 else 0),
+	}
+
+func run_wall_seconds() -> float:
+	if state == State.TOWN or run_started_usec == 0:
+		return 0.0
+	return ((run_ended_usec if run_ended_usec > 0 else Time.get_ticks_usec()) - run_started_usec) / 1000000.0
 
 func spawn_enemy(forced_role: String = "") -> void:
 	if state != State.FIGHTING or remaining_to_spawn <= 0 or enemies.get_child_count() >= enemy_limit:
@@ -301,7 +376,12 @@ func spawn_enemy(forced_role: String = "") -> void:
 			spawn_at = candidate
 			break
 	var enemy = ENEMY.instantiate()
-	var spawned_this_wave: int = first_wave_enemies + (wave - 1) * enemies_per_wave - remaining_to_spawn
+	var spawned_this_wave: int = wave_budget - remaining_to_spawn
+	var settings: Dictionary = wave_settings(wave)
+	var spawning_boss: bool = is_boss_wave(wave) and not boss_spawned
+	var role: String = forced_role
+	if spawning_boss:
+		role = "seer" if wave % 10 == 0 else "guardian"
 	var ranged_alive: int = 0
 	var guardians_alive: int = 0
 	for current in enemies.get_children():
@@ -309,12 +389,12 @@ func spawn_enemy(forced_role: String = "") -> void:
 			ranged_alive += 1
 		if current.get_script() == GUARDIAN_ENEMY and not current.dead:
 			guardians_alive += 1
-	if wave >= guardian_first_wave and guardians_alive < guardian_limit and (forced_role == "guardian" or (forced_role.is_empty() and spawned_this_wave % guardian_every == guardian_every - 1)):
+	if (spawning_boss and role == "guardian") or (wave >= guardian_first_wave and guardians_alive < guardian_limit and (role == "guardian" or (role.is_empty() and spawned_this_wave % int(settings.guardian_every) == int(settings.guardian_every) - 1))):
 		enemy.set_script(GUARDIAN_ENEMY)
 		enemy.armor = guardian_armor
 		enemy.minimum_ratio = guardian_minimum_ratio
 		enemy.armor_absorbed.connect(show_blocked)
-	elif wave >= 2 and ranged_alive < ranged_limit and (forced_role == "seer" or (forced_role.is_empty() and spawned_this_wave % 4 == 3)):
+	elif (spawning_boss and role == "seer") or (wave >= 2 and ranged_alive < ranged_limit and (role == "seer" or (role.is_empty() and spawned_this_wave % int(settings.seer_every) == int(settings.seer_every) - 1))):
 		enemy.set_script(RANGED_ENEMY)
 		enemy.windup = ranged_windup
 		enemy.attack_interval = ranged_interval
@@ -323,19 +403,45 @@ func spawn_enemy(forced_role: String = "") -> void:
 	enemy.position = spawn_at
 	enemy.target = player
 	enemy.bounds = BOUNDS
-	enemy.max_health = enemy_health + (wave - 1) * enemy_health_growth
-	enemy.move_speed = enemy_speed + (wave - 1) * enemy_speed_growth
+	enemy.max_health = settings.health
+	enemy.move_speed = settings.speed
+	var role_name: String = "chaser"
 	if enemy.get_script() == GUARDIAN_ENEMY:
+		role_name = "guardian"
 		enemy.max_health *= guardian_health_multiplier
 		enemy.move_speed *= guardian_speed_ratio
 	elif enemy.get_script() == RANGED_ENEMY:
+		role_name = "seer"
 		enemy.max_health *= seer_health_multiplier
-	enemy.contact_damage = enemy_damage
+	enemy.contact_damage = settings.damage
+	if spawning_boss:
+		boss_spawned = true
+		boss = enemy
+		enemy.boss_name = boss_title(wave)
+		enemy.scale = Vector2.ONE * (1.8 if wave % 10 == 0 else 1.5)
+		enemy.max_health *= boss_health_multiplier * (1.5 if wave % 10 == 0 else 1.0)
+		enemy.contact_damage = minf(200, enemy.contact_damage * 1.5)
+		role_name = "boss"
+		if enemy.get_script() == RANGED_ENEMY:
+			enemy.attack_radius *= 1.4
+	enemy.max_health = minf(1000000, enemy.max_health)
+	wave_roles[role_name] = wave_roles.get(role_name, 0) + 1
 	enemy.frozen = enemies_frozen
 	enemy.hit.connect(show_hit)
 	enemy.slain.connect(enemy_slain)
 	enemies.add_child(enemy)
 	remaining_to_spawn -= 1
+
+func start_ascent_test(number: int) -> bool:
+	if not OS.is_debug_build() or not OS.get_cmdline_user_args().has("--test-mode") or number < 1 or number > total_waves:
+		return false
+	restart_run()
+	if state == State.FINISHED:
+		return false
+	wave = number - 1
+	rng.seed = 42
+	begin_wave()
+	return true
 
 func start_counterplay_test(build_index: int, role_index: int) -> bool:
 	# Isolated saves only: these arrangements deliberately replace the active test run.
@@ -370,30 +476,48 @@ func start_counterplay_test(build_index: int, role_index: int) -> bool:
 	return true
 
 func complete_wave() -> void:
-	if state != State.FIGHTING:
+	if state != State.FIGHTING or wave <= completed_waves or remaining_to_spawn > 0 or enemies.get_child_count() > 0:
 		return
 	completed_waves = maxi(completed_waves, wave)
+	wave_summaries.append({"wave": wave, "boss": boss_title(wave) if is_boss_wave(wave) else "", "seconds": wave_seconds, "damage_taken": maxf(0, damage_taken - wave_damage_start), "roles": wave_roles.duplicate()})
 	if last_healed_wave < wave:
 		last_healed_wave = wave
 		var perks: Dictionary = TALENTS.bonuses(active_talents, self)
 		if perks.healing > 0:
 			player.health = minf(player.health_limit, player.health + player.health_limit * perks.healing)
 			player.health_changed.emit(player.health, player.health_limit)
-	if wave >= total_waves:
-		finish_run(true)
-	elif wave in [2, 4]:
+	if card_wave(wave):
 		state = State.UPGRADE
 		get_tree().paused = true
-		show_overlay("CHOOSE YOUR UPGRADE", "Wave %d cleared. Pick one change for this run." % wave)
-		for index in 3:
-			var details: Array[String] = ["+%.0f%% of base fireball damage" % (upgrade_damage_bonus * 100), "%.0f%% shorter casting interval" % (upgrade_cast_reduction * 100), "+%d projectile(s) per cast" % upgrade_projectiles]
-			add_button(UPGRADE_TITLES[index] + "\n" + details[index], choose_upgrade.bind(index))
+		show_overlay("BOSS REWARD — CHOOSE YOUR UPGRADE" if is_boss_wave(wave) else "CHOOSE YOUR UPGRADE", "Wave %d cleared. Pick one change for this run.\nCasting is capped at 0.08 s and fans at 9 projectiles." % wave)
+		refresh_upgrade_cards()
+	else:
+		after_wave()
+
+func refresh_upgrade_cards() -> void:
+	if state != State.UPGRADE:
+		return
+	for child in buttons.get_children():
+		buttons.remove_child(child)
+		child.queue_free()
+	var details: Array[String] = ["+%.0f%% of base fireball damage" % (upgrade_damage_bonus * 100), "%.0f%% shorter casting interval" % (upgrade_cast_reduction * 100), "+%d projectile(s) per cast" % upgrade_projectiles]
+	for index in 3:
+		add_button(UPGRADE_TITLES[index] + "\n" + ("At limit" if upgrade_capped(index) else details[index]), choose_upgrade.bind(index))
+		buttons.get_child(index).disabled = upgrade_capped(index)
+	buttons.get_child(0).grab_focus()
+
+func upgrade_capped(index: int) -> bool:
+	return (index == 1 and (player.cast_interval <= player.MIN_CAST_INTERVAL or upgrade_cast_reduction <= 0)) or (index == 2 and player.projectile_count >= player.MAX_PROJECTILES_PER_CAST)
+
+func after_wave() -> void:
+	if wave >= total_waves:
+		finish_run(true)
 	else:
 		state = State.BETWEEN_WAVES
-		break_clock = intermission
+		break_clock = intermission * (2.0 if is_boss_wave(wave) else 1.0)
 
 func choose_upgrade(index: int) -> void:
-	if state != State.UPGRADE or index < 0 or index >= 3:
+	if state != State.UPGRADE or index < 0 or index >= 3 or upgrade_capped(index):
 		return
 	match index:
 		0: power_upgrades += 1
@@ -401,10 +525,9 @@ func choose_upgrade(index: int) -> void:
 		2: fan_upgrades += 1
 	update_build()
 	upgrades_chosen += 1
-	state = State.BETWEEN_WAVES
-	break_clock = intermission
 	overlay.hide()
 	get_tree().paused = false
+	after_wave()
 	update_hud()
 
 func pause_run() -> void:
@@ -422,6 +545,8 @@ func resume_run() -> void:
 	state = get_meta("resume_state", State.FIGHTING)
 	get_tree().paused = false
 	overlay.hide()
+	if state == State.BOSS_INTRO:
+		show_overlay("BOSS APPROACHING", "%s\nWave %d — defeat the boss and its escort." % [boss_title(wave), wave])
 
 func finish_run(victory: bool) -> void:
 	if state in [State.FINISHED, State.TOWN]:
@@ -430,13 +555,16 @@ func finish_run(victory: bool) -> void:
 		dev_console.close_console()
 	inventory_panel.close_inventory()
 	state = State.FINISHED
+	run_ended_usec = Time.get_ticks_usec()
 	result_victory = victory
 	reward_due = predicted_reward()
 	get_tree().paused = true
 	settle_reward()
 
 func predicted_reward() -> int:
-	return echoes_per_wave * completed_waves * (completed_waves + 1) / 2
+	var early: int = clampi(completed_waves, 0, 6)
+	var late: int = maxi(0, mini(completed_waves, 100) - 6)
+	return echoes_per_wave * early * (early + 1) / 2 + late * echoes_after_six + late * (late - 1) / 2 * echoes_after_six_growth
 
 func settle_reward() -> void:
 	if state != State.FINISHED or reward_saved:
@@ -444,15 +572,16 @@ func settle_reward() -> void:
 	if not progress.available:
 		progress.load_progress()
 	reward_saved = progress.award(reward_due, best_wave)
-	show_overlay("THE EMBER ENDURES" if result_victory else "THE FLAME FADES", "Arena cleared!" if result_victory else "Every attempt teaches you something.")
+	show_overlay("PROTOTYPE LIMIT REACHED" if result_victory else "THE FLAME FADES", "Technical safety stop. This is not a victory." if result_victory else "Every attempt teaches you something.")
 	overlay_text.text += "\nWave %d / %d   |   %d cleared   |   %d defeats   |   Best %d\nEchoes earned: %d   |   Total: %d\n%s" % [wave, total_waves, completed_waves, kills, best_wave, reward_due, progress.echoes, "Reward saved. Run items reset on your next attempt." if reward_saved else progress.message]
+	overlay_text.text += "\nRun time (including choices / pauses): %.1fs   |   Active: %.1fs" % [run_wall_seconds(), elapsed]
 	if reward_saved:
 		add_button("Return to Town", return_to_town)
 	else:
 		add_button("Retry saving reward", settle_reward)
 
 func _cast(origin: Vector2, direction: Vector2, damage: float) -> void:
-	if state != State.FIGHTING:
+	if state != State.FIGHTING or projectiles.get_child_count() >= 256:
 		return
 	var projectile = PROJECTILE.instantiate()
 	projectile.position = origin
@@ -479,6 +608,7 @@ func update_build() -> void:
 	player.health_changed.emit(player.health, player.health_limit)
 	if is_instance_valid(inventory_panel) and inventory_panel.is_open:
 		inventory_panel.refresh()
+	refresh_upgrade_cards()
 
 func build_for(scepter: String, book: String) -> Dictionary:
 	var perks: Dictionary = TALENTS.bonuses(active_talents, self)
@@ -487,7 +617,7 @@ func build_for(scepter: String, book: String) -> Dictionary:
 	if scepter == "swift_scepter":
 		interval *= 1.0 - scepter_cast_reduction
 	interval *= 1.0 - minf(0.6, perks.interval)
-	return {"damage": player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus) * (1.0 + gear_damage) * (1.0 + perks.damage), "interval": interval, "projectiles": 1 + fan_upgrades * upgrade_projectiles, "splash": book == "cinder_codex"}
+	return {"damage": player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus) * (1.0 + gear_damage) * (1.0 + perks.damage), "interval": maxf(player.MIN_CAST_INTERVAL, interval), "projectiles": mini(player.MAX_PROJECTILES_PER_CAST, 1 + fan_upgrades * upgrade_projectiles), "splash": book == "cinder_codex"}
 
 func bag_used() -> int:
 	return 8 - bag.count("")
@@ -615,7 +745,7 @@ func _health_changed(current: float, maximum: float) -> void:
 	health_label.text = "VITALITY   %d / %d" % [ceili(current), ceili(maximum)]
 
 func update_hud() -> void:
-	var status: String = "WAVE %02d / %02d" % [wave, total_waves]
+	var status: String = "WAVE %02d%s" % [wave, " / BOSS" if is_boss_wave(wave) else ""]
 	if state == State.BETWEEN_WAVES:
 		status = "WAVE %02d IN %.1fs" % [wave + 1, maxf(break_clock, 0.0)]
 	hud.text = "%s     /     %d REMAINING     /     BEST %02d" % [status, remaining_to_spawn + enemies.get_child_count(), best_wave]
@@ -624,6 +754,13 @@ func update_hud() -> void:
 	var scepter_name: String = "Empty" if equipment.scepter.is_empty() else CATALOG.ITEMS[equipment.scepter].name
 	var book_name: String = "Empty" if equipment.book.is_empty() else CATALOG.ITEMS[equipment.book].name
 	loot_label.text = "SCEPTER: %s   /   BOOK: %s   /   BAG: %d/8   /   I: inspect & equip" % [scepter_name, book_name, bag_used()]
+	var boss_alive: bool = is_instance_valid(boss) and not boss.dead
+	boss_label.visible = boss_alive
+	boss_bar.visible = boss_alive
+	if boss_alive:
+		boss_label.text = "%s   /   %.0f / %.0f" % [boss.boss_name, boss.health, boss.max_health]
+		boss_bar.max_value = boss.max_health
+		boss_bar.value = boss.health
 
 func create_interface() -> void:
 	var layer := CanvasLayer.new()
@@ -636,6 +773,18 @@ func create_interface() -> void:
 	theme.default_font_size = 18
 	theme.set_color("font_color", "Label", Color("e9ddc7"))
 	ui.theme = theme
+	boss_label = add_label(ui, "", Vector2(360, 138), 15, Color("f0c88e"))
+	boss_bar = ProgressBar.new()
+	boss_bar.position = Vector2(360, 162)
+	boss_bar.size = Vector2(560, 12)
+	boss_bar.show_percentage = false
+	var boss_background := StyleBoxFlat.new()
+	boss_background.bg_color = Color("302a32")
+	var boss_fill := StyleBoxFlat.new()
+	boss_fill.bg_color = Color("c1975c")
+	boss_bar.add_theme_stylebox_override("background", boss_background)
+	boss_bar.add_theme_stylebox_override("fill", boss_fill)
+	ui.add_child(boss_bar)
 	add_label(ui, "L O O T F A L L", Vector2(64, 25), 30, Color("edcca0"))
 	add_label(ui, "THE EMBER TRIAL   /   ARENA PROTOTYPE", Vector2(65, 66), 13, Color("9da6b3"))
 	hud = add_label(ui, "", Vector2(580, 53), 17, Color("e9ddc7"))

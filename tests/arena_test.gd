@@ -104,10 +104,14 @@ func run() -> void:
 	game.restart_run()
 	game.player.controls_enabled = false
 	game.enemy_limit = 18
+	var expected_kills: int = 0
 	for wave_index in range(1, 7):
 		game.begin_wave()
+		if game.state == game.State.BOSS_INTRO:
+			game._process(2.1)
 		check(game.wave == wave_index, "Wave number progresses once")
-		check(game.remaining_to_spawn == game.first_wave_enemies + (wave_index - 1) * game.enemies_per_wave, "Wave pressure increases")
+		check(game.remaining_to_spawn == game.wave_settings(wave_index).budget, "Wave budget follows the normal or boss model")
+		expected_kills += game.remaining_to_spawn
 		while game.remaining_to_spawn > 0:
 			game.spawn_enemy()
 			var enemy = game.enemies.get_child(0)
@@ -115,8 +119,8 @@ func run() -> void:
 			enemy.take_damage(10000)
 			await process_frame
 		game.complete_wave()
-		if wave_index in [2, 4]:
-			check(paused and game.state == game.State.UPGRADE, "Wave 2 and 4 freeze combat for a choice")
+		if wave_index in [2, 4, 5]:
+			check(paused and game.state == game.State.UPGRADE, "Normal and boss card waves freeze combat for a choice")
 			check(game.buttons.get_child_count() == 3, "Exactly three upgrade cards are offered")
 			var previous_count: int = game.player.projectile_count
 			game.buttons.get_child(2).pressed.emit()
@@ -124,9 +128,9 @@ func run() -> void:
 			game.choose_upgrade(2)
 			check(game.player.projectile_count == previous_count + 1, "A stale click cannot apply a second upgrade")
 			check(not paused, "Choosing an upgrade resumes the run")
-	check(game.state == game.State.FINISHED and paused, "Completing wave 6 ends the run")
-	check(game.upgrades_chosen == 2, "A complete run offers exactly two choices")
-	check(game.kills == 108, "Six waves count each defeated enemy once")
+	check(game.state == game.State.BETWEEN_WAVES and not paused, "Completing wave 6 continues the ascent")
+	check(game.upgrades_chosen == 3, "First six waves offer two normal and one boss choice")
+	check(game.kills == expected_kills, "Six waves count each normal and boss defeat once")
 	check(game.best_wave == 6, "The session record reaches wave 6")
 	game.restart_run()
 	game.player.controls_enabled = false

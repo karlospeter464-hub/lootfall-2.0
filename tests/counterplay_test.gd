@@ -61,6 +61,8 @@ func run() -> void:
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
+	# Keep the previous five-hit reference; CE2 tests separately compare 3 / 4 / 5.
+	game.seer_interrupt_hits = 5
 	var guardian = setup(0, 2)
 	var hp: float = guardian.health
 	var dealt: float = game.damage_dealt
@@ -185,7 +187,7 @@ func run() -> void:
 			game.spawn_enemy()
 		var guardians: Array = game.enemies.get_children().filter(func(enemy): return enemy.get_script() == game.GUARDIAN_ENEMY)
 		var seers: Array = game.enemies.get_children().filter(func(enemy): return enemy.get_script() == game.RANGED_ENEMY)
-		check(guardians.size() == (0 if wave_index < 3 else 2), "Guardian first wave and two-alive cap: wave %d" % wave_index)
+		check(guardians.size() == (0 if wave_index < 3 else (1 if wave_index == 6 else 2)), "Guardian first wave, recovery cadence and two-alive cap: wave %d" % wave_index)
 		check(seers.size() <= game.ranged_limit and game.enemies.get_child_count() <= game.enemy_limit, "Both role caps respect global cap: wave %d" % wave_index)
 	game.restart_run()
 	game.guardian_limit = 0
@@ -199,7 +201,7 @@ func run() -> void:
 	dev.reset_defaults()
 	check(dev.save_profile(), "CE1 profile saves")
 	var profile: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(profile.version == 6 and profile.values.size() == 63, "Profile six has all 63 values")
+	check(profile.version == 7 and profile.values.size() == 71, "Profile seven has all 71 values")
 	profile.version = 5
 	for field in dev.FIELDS:
 		if dev.field_version(field) > 5:

@@ -9,14 +9,15 @@ var charging: bool = false
 var charge_left: float = 0.0
 var marked_position: Vector2
 var impact_left: float = 0.0
-var interrupt_hits: int = 5
+var interrupt_hits: int = 3
 var concentration_hits: int = 0
 var interrupted_left: float = 0.0
 var interruptions: int = 0
+var protected_cast: bool = false
 
 func take_projectile_hit(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
 	super.take_projectile_hit(amount, direction)
-	if dead or amount <= 0 or not charging or interrupt_hits <= 0:
+	if dead or amount <= 0 or not charging or interrupt_hits <= 0 or protected_cast:
 		return
 	concentration_hits += 1
 	if concentration_hits >= interrupt_hits:
@@ -27,6 +28,7 @@ func take_projectile_hit(amount: float, direction: Vector2 = Vector2.ZERO) -> vo
 		cooldown = attack_interval
 		interrupted_left = 1.0
 		interruptions += 1
+		protected_cast = not boss_name.is_empty()
 	queue_redraw()
 
 func take_damage(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
@@ -37,6 +39,7 @@ func take_damage(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
 		concentration_hits = 0
 		impact_left = 0.0
 		interrupted_left = 0.0
+		protected_cast = false
 
 func _physics_process(delta: float) -> void:
 	if dead or frozen or not is_instance_valid(target):
@@ -51,6 +54,7 @@ func _physics_process(delta: float) -> void:
 		if charge_left <= 0:
 			charging = false
 			concentration_hits = 0
+			protected_cast = false
 			impact_left = 0.25
 			cooldown = attack_interval
 			if target.global_position.distance_to(marked_position) <= attack_radius:
@@ -79,15 +83,19 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(-29, -40), "BROKEN", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("99f5dc"))
 		draw_line(Vector2(-23, -24), Vector2(-32, -33), Color("99f5dc"), 3)
 		draw_line(Vector2(23, -24), Vector2(32, -33), Color("99f5dc"), 3)
-	if charging and interrupt_hits > 0:
+	if charging and protected_cast:
+		draw_string(ThemeDB.fallback_font, Vector2(-42, -47), "STEADY CAST", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("ffd18c"))
+	elif charging and interrupt_hits > 0:
 		draw_string(ThemeDB.fallback_font, Vector2(-42, -47), "INTERRUPT %d/%d" % [concentration_hits, interrupt_hits], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("99f5dc"))
 		for index in interrupt_hits:
 			draw_circle(Vector2((index - (interrupt_hits - 1) / 2.0) * 7, -36), 2.5, Color("99f5dc") if index < concentration_hits else Color("47526a"))
 	if charging or impact_left > 0:
 		var point: Vector2 = to_local(marked_position)
+		# Boss body scaling must not enlarge the warning beyond its world-space hit radius.
+		var local_radius: float = attack_radius / global_scale.x
 		var color := Color("ed8ca8") if charging else Color("ffc2d2")
 		draw_line(Vector2.ZERO, point, Color(color, 0.5), 1, true)
-		draw_circle(point, attack_radius, Color(color, 0.12 if charging else 0.35))
-		draw_arc(point, attack_radius, 0, TAU, 48, color, 2, true)
+		draw_circle(point, local_radius, Color(color, 0.12 if charging else 0.35))
+		draw_arc(point, local_radius, 0, TAU, 48, color, 2, true)
 		if charging:
-			draw_arc(point, attack_radius + 5, -PI / 2, -PI / 2 + TAU * (1.0 - charge_left / windup), 48, color, 3, true)
+			draw_arc(point, local_radius + 5 / global_scale.x, -PI / 2, -PI / 2 + TAU * (1.0 - charge_left / windup), 48, color, 3, true)

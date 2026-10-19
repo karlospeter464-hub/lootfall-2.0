@@ -10,7 +10,13 @@ const FIELDS := [
 	["Player", "player", "base_damage", "Base fireball damage", 1, 100, 1, "Next cast; existing upgrades preserved"],
 	["Player", "player", "base_cast_interval", "Base cast interval (s)", 0.08, 2, 0.01, "Next cooldown"],
 	["Player", "player", "hit_protection", "Hit protection (s)", 0.1, 2, 0.05, "Next hit"],
-	["Waves", "arena", "total_waves", "Run wave limit", 5, 100, 1, "Next wave completion; choices remain at 2 and 4"],
+	["Waves", "arena", "total_waves", "Prototype safety wave cap", 5, 100, 1, "Technical stop, not victory; cards every five-wave block"],
+	["Waves", "arena", "ascent_health_scale", "HP multiplier / wave after 6", 1, 1.35, 0.01, "New enemies; bounded for prototype safety"],
+	["Waves", "arena", "ascent_damage_growth", "Damage growth / wave", 0, 0.1, 0.01, "New enemies; 0.04 = 4%"],
+	["Waves", "arena", "ascent_budget_cap", "Normal wave budget ceiling", 1, 60, 1, "Next wave; does not change active enemy cap"],
+	["Waves", "arena", "ascent_spawn_decay", "Spawn interval reduction / wave", 0, 0.1, 0.01, "Next spawn; minimum 0.18s"],
+	["Waves", "arena", "boss_health_multiplier", "Boss HP multiplier", 1, 15, 0.5, "New bosses; Prophet adds another 1.5x"],
+	["Waves", "arena", "boss_escorts", "Boss escort budget", 0, 10, 1, "Next boss wave; boss also occupies one spawn slot"],
 	["Waves", "arena", "first_wave_enemies", "First-wave enemies", 1, 50, 1, "Next wave"],
 	["Waves", "arena", "enemies_per_wave", "Extra enemies / wave", 0, 20, 1, "Next wave"],
 	["Waves", "arena", "enemy_limit", "Simultaneous enemy cap", 1, 100, 1, "Live; does not delete existing enemies"],
@@ -53,6 +59,8 @@ const FIELDS := [
 	["Combat & loot", "arena", "explosion_radius", "Codex explosion radius", 20, 250, 5, "Next impact with Codex"],
 	["Combat & loot", "arena", "explosion_damage_ratio", "Codex splash / shot damage", 0, 3, 0.05, "Next impact; excludes the directly hit enemy"],
 	["Rewards & tools", "arena", "echoes_per_wave", "Echoes per completed wave tier", 0, 1000, 1, "At run end; tier * (1 + 2 + ... + cleared)"],
+	["Rewards & tools", "arena", "echoes_after_six", "First extra wave reward (wave 7)", 0, 1000, 1, "At run end; waves 1-6 keep their original formula"],
+	["Rewards & tools", "arena", "echoes_after_six_growth", "Extra wave reward growth", 0, 100, 1, "At run end; adds 2 per later cleared wave by default"],
 	["Skill tree", "arena", "tree_cost_1", "Tier 1 cost", 1, 10000, 1, "Next purchase; refunds keep the paid price"],
 	["Skill tree", "arena", "tree_cost_2", "Tier 2 cost", 1, 10000, 1, "Next purchase"],
 	["Skill tree", "arena", "tree_cost_3", "Tier 3 cost", 1, 10000, 1, "Next purchase"],
@@ -212,6 +220,21 @@ func _ready() -> void:
 		else:
 			status.text = "Launch with -- --test-mode for isolated CE1 tests. Check pending save errors if already isolated."
 	)
+	var ascent_row := HBoxContainer.new()
+	pages["Rewards & tools"].add_child(ascent_row)
+	var wave_input := SpinBox.new()
+	wave_input.min_value = 1
+	wave_input.max_value = 100
+	wave_input.value = 5
+	wave_input.custom_minimum_size.x = 120
+	ascent_row.add_child(wave_input)
+	button(ascent_row, "Jump to wave (isolated)", func():
+		if game.start_ascent_test(int(wave_input.value)):
+			open_console()
+			status.text = "Isolated run reset at selected wave. Existing tuning kept; use gear drops and invulnerability as needed."
+		else:
+			status.text = "Requires -- --test-mode, a wave within the safety cap, and no pending save error."
+	)
 	var footer := HBoxContainer.new()
 	column.add_child(footer)
 	button(footer, "Save profile", save_profile)
@@ -274,7 +297,7 @@ func update_metrics() -> void:
 	var total_hp: float = 0.0
 	for enemy in game.enemies.get_children():
 		total_hp += enemy.health
-	metrics.text = "FPS: %d   |   Frame: %.2f ms   |   Static memory: %.1f MiB\nState: %s   |   Active run time: %.1f s   |   Seed: %d\nWave: %d / %d   |   Cleared: %d   |   Best: %d\nEnemies: %d / %d cap   |   Still to spawn: %d   |   Active enemy HP: %.0f\nKills: %d   |   Projectiles alive: %d   |   Projectiles fired / hit: %d / %d\nDamage dealt: %.1f   |   Average run DPS: %.1f   |   Health lost: %.1f\nPlayer: %.0f / %.0f HP   |   Speed: %.0f   |   Protection left: %.2f s\nFireball: %.1f damage   |   %.3f s interval   |   %d projectiles\nCards: %d / 2   |   Power / Quick / Fan: %d / %d / %d\nCodex active: %s   |   Items on floor: %d   |   Drops this run: %d\nSplash: %.0f radius / %.0f%% damage   |   Legendary check: %.2f%%\nEchoes: %d saved   |   Current payout: %d   |   Saved progress available: %s" % [Engine.get_frames_per_second(), 1000.0 / maxf(Engine.get_frames_per_second(), 1), OS.get_static_memory_usage() / 1048576.0, game.State.keys()[game.state], game.elapsed, game.rng.seed, game.wave, game.total_waves, game.completed_waves, game.best_wave, game.enemies.get_child_count(), game.enemy_limit, game.remaining_to_spawn, total_hp, game.kills, game.projectiles.get_child_count(), game.shots_fired, game.shots_hit, game.damage_dealt, game.damage_dealt / maxf(game.elapsed, 0.001), game.damage_taken, game.player.health, game.player.max_health, game.player.move_speed, game.player.protection, game.player.damage, game.player.cast_interval, game.player.projectile_count, game.upgrades_chosen, game.power_upgrades, game.quick_upgrades, game.fan_upgrades, str(game.codex_active), game.loot.get_child_count(), game.drops_created, game.explosion_radius, game.explosion_damage_ratio * 100, game.drop_chance * 100, game.progress.echoes, game.predicted_reward(), str(game.progress.available)]
+	metrics.text = "FPS: %d   |   Frame: %.2f ms   |   Static memory: %.1f MiB\nState: %s   |   Active run time: %.1f s   |   Seed: %d\nWave: %d / %d   |   Cleared: %d   |   Best: %d\nEnemies: %d / %d cap   |   Still to spawn: %d   |   Active enemy HP: %.0f\nKills: %d   |   Projectiles alive: %d   |   Projectiles fired / hit: %d / %d\nDamage dealt: %.1f   |   Average run DPS: %.1f   |   Health lost: %.1f\nPlayer: %.0f / %.0f HP   |   Speed: %.0f   |   Protection left: %.2f s\nFireball: %.1f damage   |   %.3f s interval   |   %d projectiles\nCards: %d total   |   Power / Quick / Fan: %d / %d / %d\nCodex active: %s   |   Items on floor: %d   |   Drops this run: %d\nSplash: %.0f radius / %.0f%% damage   |   Legendary check: %.2f%%\nEchoes: %d saved   |   Current payout: %d   |   Saved progress available: %s" % [Engine.get_frames_per_second(), 1000.0 / maxf(Engine.get_frames_per_second(), 1), OS.get_static_memory_usage() / 1048576.0, game.State.keys()[game.state], game.elapsed, game.rng.seed, game.wave, game.total_waves, game.completed_waves, game.best_wave, game.enemies.get_child_count(), game.enemy_limit, game.remaining_to_spawn, total_hp, game.kills, game.projectiles.get_child_count(), game.shots_fired, game.shots_hit, game.damage_dealt, game.damage_dealt / maxf(game.elapsed, 0.001), game.damage_taken, game.player.health, game.player.max_health, game.player.move_speed, game.player.protection, game.player.damage, game.player.cast_interval, game.player.projectile_count, game.upgrades_chosen, game.power_upgrades, game.quick_upgrades, game.fan_upgrades, str(game.codex_active), game.loot.get_child_count(), game.drops_created, game.explosion_radius, game.explosion_damage_ratio * 100, game.drop_chance * 100, game.progress.echoes, game.predicted_reward(), str(game.progress.available)]
 
 	metrics.text += "\nBag: %d / 8   |   Scepter: %s   |   Book: %s" % [game.bag_used(), game.equipment.scepter, game.equipment.book]
 	metrics.text += "\nTalents saved / active: %d / %d   |   Echoes invested: %d   |   Second Wind: %.1fs" % [game.progress.talents.size(), game.active_talents.size(), game.progress.invested(), game.player.haste_remaining]
@@ -287,6 +310,10 @@ func update_metrics() -> void:
 		if enemy.get_script() == game.RANGED_ENEMY:
 			interruptions += enemy.interruptions
 	metrics.text += "\nActive seers: %d total interruptions   |   Effective cast interval: %.3fs" % [interruptions, game.player.effective_interval()]
+	metrics.text += "\nRun wall time (includes choices / pauses / F1): %.1fs   |   Current wave combat: %.1fs" % [game.run_wall_seconds(), game.wave_seconds]
+	for index in range(maxi(0, game.wave_summaries.size() - 5), game.wave_summaries.size()):
+		var row: Dictionary = game.wave_summaries[index]
+		metrics.text += "\nWave %d %s: %.1fs combat, %.1f HP lost; C/S/G/B %d/%d/%d/%d" % [row.wave, row.boss, row.seconds, row.damage_taken, row.roles.get("chaser", 0), row.roles.get("seer", 0), row.roles.get("guardian", 0), row.roles.get("boss", 0)]
 
 func valid_value(field: Array, value: Variant) -> bool:
 	if not (value is int or value is float) or not is_finite(float(value)):
@@ -333,13 +360,13 @@ func save_profile() -> bool:
 	for field in FIELDS:
 		var target: Object = game.player if field[1] == "player" else game
 		values[field[1] + "." + field[2]] = target.get(field[2])
-	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 6, "values": values})
+	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 7, "values": values})
 	status.text = "Profile saved: %s" % ProjectSettings.globalize_path(profile_path) if error == OK else "Profile not saved: %s" % error_string(error)
 	return error == OK
 
 func load_profile() -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(profile_path)
-	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5 and data.get("version") != 6) or not data.get("values") is Dictionary:
+	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5 and data.get("version") != 6 and data.get("version") != 7) or not data.get("values") is Dictionary:
 		status.text = "Invalid or missing profile. Nothing changed."
 		return false
 	var values: Dictionary = data.values
@@ -365,10 +392,12 @@ func load_profile() -> bool:
 		var key: String = field[1] + "." + field[2]
 		apply_setting(key, values.get(key, defaults[key]))
 	sync_controls()
-	status.text = "Legacy values loaded. Loot now uses a per-item rarity cascade; newer fields use startup defaults." if version < 6 else "Profile loaded. Test switches and progress are not part of profiles."
+	status.text = "Legacy values loaded. Loot uses a per-item rarity cascade; new fields use startup defaults. Old wave limits now mean safety stops; reset defaults for ascent." if version < 7 else "Profile loaded. Test switches and progress are not part of profiles."
 	return true
 
 func field_version(field: Array) -> int:
+	if field[2].begins_with("ascent_") or field[2].begins_with("boss_") or field[2].begins_with("echoes_after_"):
+		return 7
 	if field[2].begins_with("guardian_") or field[2].begins_with("seer_"):
 		return 6
 	if field[2] in ["rare_chance", "magic_chance"]:

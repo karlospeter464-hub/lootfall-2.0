@@ -50,6 +50,10 @@ func capture() -> void:
 		if argument.begins_with("--output="):
 			output = argument.trim_prefix("--output=")
 		elif argument == "--view=upgrade":
+			for enemy in game.enemies.get_children():
+				game.enemies.remove_child(enemy)
+				enemy.queue_free()
+			game.remaining_to_spawn = 0
 			game.wave = 2
 			game.best_wave = 2
 			game.complete_wave()
@@ -72,6 +76,34 @@ func capture() -> void:
 		elif argument == "--view=ce1_tools":
 			game.dev_console.open_console()
 			game.dev_console.tabs.current_tab = 5
+		elif argument in ["--view=ce2_boss5", "--view=ce2_boss10", "--view=ce2_reward", "--view=ce2_intro", "--view=ce2_metrics"]:
+			var number: int = 10 if argument in ["--view=ce2_boss10", "--view=ce2_metrics"] else 5
+			game.start_ascent_test(number)
+			game.player.controls_enabled = false
+			if argument == "--view=ce2_intro":
+				continue
+			game._process(2.1)
+			for index in game.wave_budget:
+				game.spawn_enemy()
+				var enemy = game.enemies.get_child(index)
+				enemy.set_physics_process(false)
+				enemy.position = Vector2(900, 420) if enemy == game.boss else Vector2(240 + index * 125, 270 + (index % 2) * 280)
+			game.player.controls_enabled = false
+			if number == 10:
+				game.boss.charging = true
+				game.boss.protected_cast = true
+				game.boss.charge_left = 0.9
+				game.boss.marked_position = game.player.position + Vector2(90, 55)
+			game.boss.queue_redraw()
+			if argument == "--view=ce2_reward":
+				for enemy in game.enemies.get_children():
+					game.enemies.remove_child(enemy)
+					enemy.queue_free()
+				game.remaining_to_spawn = 0
+				game.boss = null
+				game.complete_wave()
+			elif argument == "--view=ce2_metrics":
+				game.dev_console.open_console()
 		elif argument == "--view=inventory":
 			for id in ["ember_scepter", "cinder_codex", "swift_scepter", "focus_grimoire"]:
 				game.accept_item(id)

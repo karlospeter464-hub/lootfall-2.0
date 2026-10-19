@@ -86,6 +86,10 @@ func run() -> void:
 	game.resume_run()
 	game.wave = 2
 	game.state = game.State.FIGHTING
+	game.remaining_to_spawn = 0
+	for enemy in game.enemies.get_children():
+		game.enemies.remove_child(enemy)
+		enemy.queue_free()
 	game.complete_wave()
 	check(game.state == game.State.UPGRADE and paused, "The wave-two card event remains intact")
 	var choices: int = game.buttons.get_child_count()
@@ -117,7 +121,7 @@ func run() -> void:
 	check(game.loot.get_child_count() == 3 and game.loot.get_child(2).item_id != "cinder_codex", "A guaranteed other-gear roll creates a physical regular item")
 	check(dev.save_profile(), "The expanded profile can be saved")
 	var modern: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(modern.version == 6 and modern.values.size() == 63, "New profiles explicitly use version six with all settings")
+	check(modern.version == 7 and modern.values.size() == 71, "New profiles explicitly use version seven with all settings")
 	var legacy: Dictionary = modern.duplicate(true)
 	legacy.version = 1
 	for field in dev.FIELDS:
@@ -131,7 +135,7 @@ func run() -> void:
 	legacy.values["unknown.item"] = 1
 	SAFE_JSON.write_object(dev.profile_path, legacy)
 	check(not dev.load_profile() and game.player.move_speed == 345, "Unknown legacy settings are rejected atomically")
-	modern.version = 7
+	modern.version = 8
 	SAFE_JSON.write_object(dev.profile_path, modern)
 	check(not dev.load_profile(), "Future profile versions are rejected")
 	panel.open_inventory()
