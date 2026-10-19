@@ -49,6 +49,43 @@ func capture() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--output="):
 			output = argument.trim_prefix("--output=")
+		elif argument == "--view=ce4_inventory":
+			game.start_item_test("hunter_scepter", true)
+			game.equipment.book = "phoenix_grimoire"
+			game.update_build()
+			for id in game.CATALOG.ITEMS:
+				game.accept_item(id)
+			game.phoenix_hits = 7
+			game.player.overcharge_hits = 3
+			game.inventory_panel.open_inventory()
+			game.inventory_panel.select_bag(game.bag.find("echo_scepter"))
+			game.inventory_panel.bag_buttons[game.bag.find("echo_scepter")].grab_focus()
+		elif argument == "--view=ce4_effects":
+			game.start_item_test("echo_scepter", true)
+			game.equipment.book = "storm_grimoire"
+			game.player.controls_enabled = false
+			game.update_build()
+			var positions: Array[Vector2] = [Vector2(660, 420), Vector2(780, 480), Vector2(930, 300), Vector2(1070, 450), Vector2(760, 620), Vector2(1060, 620)]
+			for index in game.enemies.get_child_count():
+				var enemy = game.enemies.get_child(index)
+				enemy.position = positions[index]
+				enemy.set_physics_process(false)
+			await physics_frame
+			await process_frame
+			game.player.cooldown = 0
+			game.player.attack(Vector2.RIGHT)
+			for shot in game.projectiles.get_children():
+				shot.set_physics_process(false)
+			game.projectiles.get_child(0)._physics_process(0.4)
+			if not game.effects.any(func(effect): return effect.get("lightning", false)):
+				push_error("CE4 preview requires a real direct hit and visible lightning")
+				quit(1)
+				return
+			game.spawn_projectile(game.player.position + Vector2(70, -10), Vector2.RIGHT, 8.4, game.attack_context, false, true)
+			for shot in game.projectiles.get_children():
+				shot.set_physics_process(false)
+				shot.position += Vector2(80, 0)
+			game.update_hud()
 		elif argument in ["--view=followup_inventory", "--view=followup_inventory_effects"]:
 			game.start_card_test(2)
 			game.player.controls_enabled = false
@@ -119,10 +156,9 @@ func capture() -> void:
 		elif argument == "--view=loot":
 			game.drop_codex(game.player.position + Vector2(130, 0))
 		elif argument == "--view=rarity_loot":
-			var positions := [Vector2(-110, -80), Vector2(110, -80), Vector2(-110, 80), Vector2(110, 80)]
 			var ids: Array = game.CATALOG.ITEMS.keys()
 			for index in ids.size():
-				game.drop_item(ids[index], game.player.position + positions[index])
+				game.drop_item(ids[index], game.player.position + Vector2((index % 4 - 1.5) * 160, (index / 4 - 0.5) * 150))
 		elif argument == "--view=rarity_metrics":
 			game.dev_console.open_console()
 		elif argument == "--view=ce1_tools":

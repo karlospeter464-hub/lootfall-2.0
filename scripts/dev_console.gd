@@ -50,6 +50,19 @@ const FIELDS := [
 	["Combat & loot", "arena", "burst_radius", "Ember Burst radius", 20, 150, 5, "Next direct kill with Ember Burst"],
 	["Combat & loot", "arena", "burst_damage_ratio", "Ember Burst / shot damage", 0.05, 2, 0.05, "Next direct kill; indirect damage cannot retrigger"],
 	["Combat & loot", "arena", "overcharge_bonus", "Overcharge damage bonus", 0.05, 2, 0.05, "Next charged main shot; 4 direct hits to charge"],
+	["Combat & loot", "arena", "echo_delay", "Echo delay (s)", 0.05, 0.3, 0.01, "Next fourth attack; normal damage, no copied charge"],
+	["Combat & loot", "arena", "echo_damage_ratio", "Echo / normal shot damage", 0.1, 1, 0.05, "Next scheduled echo; one central shot"],
+	["Combat & loot", "arena", "hunter_step", "Hunter additional-hit bonus", 0.01, 0.2, 0.01, "Next direct hit; first hit has no bonus"],
+	["Combat & loot", "arena", "hunter_cap", "Hunter maximum bonus", 0.1, 1, 0.05, "Next direct hit; per target"],
+	["Combat & loot", "arena", "hunter_duration", "Hunter streak lifetime (s)", 0.5, 6, 0.5, "Next direct hit; gameplay time, pauses stop expiry"],
+	["Combat & loot", "arena", "storm_radius", "Storm jump range", 50, 300, 10, "First direct hit per attack"],
+	["Combat & loot", "arena", "storm_damage_ratio", "Storm / shot damage", 0.1, 1, 0.05, "Next jump; indirect, no chaining"],
+	["Combat & loot", "arena", "phoenix_heal_ratio", "Phoenix max-HP heal ratio", 0.01, 0.05, 0.01, "10 direct hits outside cooldown; max HP cap"],
+	["Combat & loot", "arena", "phoenix_cooldown", "Phoenix heal cooldown (s)", 2, 10, 0.5, "Next heal; not reset by gear swapping"],
+	["Enemies", "arena", "champion_warning", "Champion warning (s)", 0.2, 2, 0.1, "Next warning; current telegraph kept"],
+	["Enemies", "arena", "champion_duration", "Champion rush duration (s)", 0.1, 1, 0.05, "Next warning; path length uses this duration"],
+	["Enemies", "arena", "champion_recovery", "Champion recovery (s)", 0.2, 2, 0.1, "Next warning"],
+	["Enemies", "arena", "champion_cooldown", "Champion walk cooldown (s)", 0.5, 8, 0.5, "After recovery; next cycle, default 2 s"],
 	["Combat & loot", "arena", "equipment_drop_chance", "Item chance per kill (0..1)", 0, 1, 0.01, "First roll; independent of rarity"],
 	["Combat & loot", "arena", "drop_chance", "Legendary check per item", 0, 1, 0.005, "First rarity roll; natural Codex limit still applies"],
 	["Combat & loot", "arena", "rare_chance", "Rare check after Legendary", 0, 1, 0.01, "Only after Legendary fails or its pool is exhausted"],
@@ -207,6 +220,22 @@ func _ready() -> void:
 	seed_row.add_child(seed_input)
 	button(seed_row, "Apply RNG seed", func(): game.rng.seed = int(seed_input.value); status.text = "RNG restarted from seed %d. Same settings and actions are needed for reproduction." % int(seed_input.value))
 	var ce3_row := HBoxContainer.new()
+	var ce4_row := HBoxContainer.new()
+	pages["Rewards & tools"].add_child(ce4_row)
+	var ce4_choice := OptionButton.new()
+	var ce4_ids := ["echo_scepter", "hunter_scepter", "storm_grimoire", "phoenix_grimoire"]
+	for item_id in ce4_ids:
+		ce4_choice.add_item(game.CATALOG.ITEMS[item_id].name)
+	ce4_row.add_child(ce4_choice)
+	var ce4_group := CheckBox.new()
+	ce4_group.text = "Group (else single)"
+	ce4_row.add_child(ce4_group)
+	button(ce4_row, "Start CE4 test", func():
+		if game.start_item_test(ce4_ids[ce4_choice.selected], ce4_group.button_pressed):
+			sync_controls()
+			status.text = "CE4 isolated test ready. Close F1 and aim right."
+		else:
+			status.text = "Requires -- --test-mode and no pending save error.")
 	pages["Rewards & tools"].add_child(ce3_row)
 	var ce3_choice := OptionButton.new()
 	for build_title in ["Burst + Power + Ember", "Piercing + Fan + Codex", "Overcharge + Quick + Fan"]:
@@ -315,6 +344,7 @@ func update_metrics() -> void:
 	metrics.text = "FPS: %d   |   Frame: %.2f ms   |   Static memory: %.1f MiB\nState: %s   |   Active run time: %.1f s   |   Seed: %d\nWave: %d / %d   |   Cleared: %d   |   Best: %d\nEnemies: %d / %d cap   |   Still to spawn: %d   |   Active enemy HP: %.0f\nKills: %d   |   Projectiles alive: %d   |   Projectiles fired / hit: %d / %d\nDamage dealt: %.1f   |   Average run DPS: %.1f   |   Health lost: %.1f\nPlayer: %.0f / %.0f HP   |   Speed: %.0f   |   Protection left: %.2f s\nFireball: %.1f damage   |   %.3f s interval   |   %d projectiles\nCards: %d total   |   Power / Quick / Fan: %d / %d / %d\nCodex active: %s   |   Items on floor: %d   |   Drops this run: %d\nSplash: %.0f radius / %.0f%% damage   |   Legendary check: %.2f%%\nEchoes: %d saved   |   Current payout: %d   |   Saved progress available: %s" % [Engine.get_frames_per_second(), 1000.0 / maxf(Engine.get_frames_per_second(), 1), OS.get_static_memory_usage() / 1048576.0, game.State.keys()[game.state], game.elapsed, game.rng.seed, game.wave, game.total_waves, game.completed_waves, game.best_wave, game.enemies.get_child_count(), game.enemy_limit, game.remaining_to_spawn, total_hp, game.kills, game.projectiles.get_child_count(), game.shots_fired, game.shots_hit, game.damage_dealt, game.damage_dealt / maxf(game.elapsed, 0.001), game.damage_taken, game.player.health, game.player.max_health, game.player.move_speed, game.player.protection, game.player.damage, game.player.cast_interval, game.player.projectile_count, game.upgrades_chosen, game.power_upgrades, game.quick_upgrades, game.fan_upgrades, str(game.codex_active), game.loot.get_child_count(), game.drops_created, game.explosion_radius, game.explosion_damage_ratio * 100, game.drop_chance * 100, game.progress.echoes, game.predicted_reward(), str(game.progress.available)]
 
 	metrics.text += "\nBag: %d / 8   |   Scepter: %s   |   Book: %s" % [game.bag_used(), game.equipment.scepter, game.equipment.book]
+	metrics.text += "\nEcho attacks: %d/4 (pending %s)   |   Hunter targets: %d   |   Phoenix hits: %d/10, cooldown %.1fs" % [game.echo_attacks, str(not game.pending_echo.is_empty()), game.hunter_marks.size(), game.phoenix_hits, game.phoenix_left]
 	metrics.text += "\nBurst / Pierce / Overcharge: %s / %s / %s   |   Charge: %d/4 %s" % [str(game.mechanic_cards.has(3)), str(game.mechanic_cards.has(4)), str(game.mechanic_cards.has(5)), game.player.overcharge_hits, "READY" if game.player.overcharge_ready else ""]
 	metrics.text += "\nTalents saved / active: %d / %d   |   Echoes invested: %d   |   Second Wind: %.1fs" % [game.progress.talents.size(), game.active_talents.size(), game.progress.invested(), game.player.haste_remaining]
 	var rates: Dictionary = game.rarity_rates()
@@ -376,13 +406,13 @@ func save_profile() -> bool:
 	for field in FIELDS:
 		var target: Object = game.player if field[1] == "player" else game
 		values[field[1] + "." + field[2]] = target.get(field[2])
-	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 8, "values": values})
+	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 9, "values": values})
 	status.text = "Profile saved: %s" % ProjectSettings.globalize_path(profile_path) if error == OK else "Profile not saved: %s" % error_string(error)
 	return error == OK
 
 func load_profile() -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(profile_path)
-	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5 and data.get("version") != 6 and data.get("version") != 7 and data.get("version") != 8) or not data.get("values") is Dictionary:
+	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5 and data.get("version") != 6 and data.get("version") != 7 and data.get("version") != 8 and data.get("version") != 9) or not data.get("values") is Dictionary:
 		status.text = "Invalid or missing profile. Nothing changed."
 		return false
 	var values: Dictionary = data.values
@@ -408,10 +438,12 @@ func load_profile() -> bool:
 		var key: String = field[1] + "." + field[2]
 		apply_setting(key, values.get(key, defaults[key]))
 	sync_controls()
-	status.text = "Legacy values loaded. Loot uses a per-item rarity cascade; new fields use startup defaults. Old wave limits now mean safety stops; reset defaults for ascent." if version < 8 else "Profile loaded. Test switches and progress are not part of profiles."
+	status.text = "Legacy values loaded. Loot uses a per-item rarity cascade; new fields use startup defaults. Saved item chances are preserved; reset defaults for CE4 (5% items) and ascent safety stops." if version < 9 else "Profile loaded. Test switches and progress are not part of profiles."
 	return true
 
 func field_version(field: Array) -> int:
+	if field[2].begins_with("echo_") or field[2].begins_with("hunter_") or field[2].begins_with("storm_") or field[2].begins_with("phoenix_") or field[2].begins_with("champion_"):
+		return 9
 	if field[2] in ["burst_radius", "burst_damage_ratio", "overcharge_bonus"]:
 		return 8
 	if field[2].begins_with("ascent_") or field[2].begins_with("boss_") or field[2].begins_with("echoes_after_"):

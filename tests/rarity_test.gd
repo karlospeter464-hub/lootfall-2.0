@@ -74,7 +74,7 @@ func run() -> void:
 	game.enemy_slain(Vector2(250, 300))
 	check(game.loot.get_child_count() == 1 and game.loot.get_child(0).item_id == "cinder_codex", "A real kill selects exactly one physical Legendary item")
 	game.enemy_slain(Vector2(450, 300))
-	check(game.loot.get_child_count() == 2 and game.loot.get_child(1).item_id == "focus_grimoire", "A second kill cannot create a second natural Codex and still drops an eligible item")
+	check(game.loot.get_child_count() == 2 and CATALOG.ITEMS[game.loot.get_child(1).item_id].rarity == "rare", "A second kill cannot create a second natural Codex and still drops an eligible Rare item")
 	check(game.progress.echoes == 0 and not game.codex_active, "Rarity drops neither pay Echoes nor equip themselves")
 	game.ground_loot_limit = 2
 	game.enemy_slain(Vector2(250, 500))
@@ -85,7 +85,7 @@ func run() -> void:
 	game.dev_console.reset_defaults()
 	rates = game.rarity_rates()
 	check(is_equal_approx(rates.rare, 0.245) and is_equal_approx(rates.magic, 0.3675) and is_equal_approx(rates.normal, 0.3675), "F1-derived actual rates use cascaded rather than flat shares")
-	check(is_equal_approx(rates.legendary * game.equipment_drop_chance, 0.002), "Default Legendary rate is 0.2 percent per kill before the Codex drops")
+	check(is_equal_approx(rates.legendary * game.equipment_drop_chance, 0.001), "Default Legendary rate is 0.1 percent per kill before the Codex drops")
 	game.codex_spawned = true
 	rates = game.rarity_rates()
 	check(rates.legendary == 0 and rates.rare == 0.25 and rates.magic == 0.375 and rates.normal == 0.375, "Metrics account for the exhausted natural Codex pool")
@@ -99,7 +99,7 @@ func run() -> void:
 	var dev = game.dev_console
 	check(dev.save_profile(), "The new cascade settings save in a real profile")
 	var profile: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(profile.version == 8 and profile.values.size() == 74, "New profiles contain all 74 values with version seven")
+	check(profile.version == 9 and profile.values.size() == 87, "New profiles contain all 87 values with version seven")
 	var old: Dictionary = profile.duplicate(true)
 	old.version = 4
 	for field in dev.FIELDS:

@@ -213,7 +213,7 @@ func run() -> void:
 	dev.reset_defaults()
 	dev.save_profile()
 	var profile: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(profile.version == 8 and profile.values.size() == 74, "New balancing profile includes all 74 values")
+	check(profile.version == 9 and profile.values.size() == 87, "New balancing profile includes all 87 values")
 	profile.version = 6
 	for field in dev.FIELDS:
 		if dev.field_version(field) > 6:

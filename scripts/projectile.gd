@@ -12,6 +12,8 @@ var age: float = 0.0
 var max_hits: int = 1
 var hit_bodies: Array[RID] = []
 var charged: bool = false
+var echoed: bool = false
+var direct_modifier: Callable
 
 func _physics_process(delta: float) -> void:
 	var next_position: Vector2 = global_position + direction * speed * delta
@@ -28,7 +30,10 @@ func _physics_process(delta: float) -> void:
 		query.exclude = hit_bodies
 		if body.has_method("take_damage") and not body.get("dead") and damage > 0:
 			var full_health: bool = body.get("health") != null and body.get("max_health") != null and is_equal_approx(float(body.get("health")), float(body.get("max_health")))
-			body.call("take_projectile_hit" if body.has_method("take_projectile_hit") else "take_damage", damage * (1.0 + opening_bonus if full_health else 1.0), direction)
+			var direct: float = damage * (1.0 + opening_bonus if full_health else 1.0)
+			if direct_modifier.is_valid():
+				direct = direct_modifier.call(body, direct)
+			body.call("take_projectile_hit" if body.has_method("take_projectile_hit") else "take_damage", direct, direction)
 			impact.emit(result.position, damage, body)
 		if hit_bodies.size() >= max_hits:
 			queue_free()
@@ -40,6 +45,8 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if echoed:
+		draw_arc(Vector2.ZERO, 9, 0, TAU, 12, Color("c8a1ff"), 2)
 	if charged:
 		draw_circle(Vector2.ZERO, 10, Color(0.5, 0.95, 1.0, 0.6))
 	draw_line(-direction * 24, Vector2.ZERO, Color(0.95, 0.3, 0.1, 0.3), 12)

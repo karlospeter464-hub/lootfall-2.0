@@ -11,6 +11,10 @@ const ITEMS := {
 	"swift_scepter": {"name": "Swift Scepter", "slot": "scepter", "rarity": "magic"},
 	"cinder_codex": {"name": "Cinder Codex", "slot": "book", "rarity": "legendary"},
 	"focus_grimoire": {"name": "Focus Grimoire", "slot": "book", "rarity": "rare"},
+	"echo_scepter": {"name": "Echo Scepter", "slot": "scepter", "rarity": "magic"},
+	"hunter_scepter": {"name": "Hunter's Scepter", "slot": "scepter", "rarity": "rare"},
+	"storm_grimoire": {"name": "Storm Grimoire", "slot": "book", "rarity": "magic"},
+	"phoenix_grimoire": {"name": "Phoenix Grimoire", "slot": "book", "rarity": "rare"},
 }
 static var icons: Dictionary = {}
 
@@ -39,6 +43,10 @@ static func description(id: String, game: Object) -> String:
 		"swift_scepter": return "Your casting interval is %.0f%% shorter.\nMore frequent shots, with unchanged damage per shot." % (game.get("scepter_cast_reduction") * 100)
 		"cinder_codex": return "Fireball impacts deal splash damage to other nearby enemies.\nRadius: %.0f  |  Splash: %.0f%% of the fireball's damage.\nThe directly hit enemy takes only its normal hit." % [game.get("explosion_radius"), game.get("explosion_damage_ratio") * 100]
 		"focus_grimoire": return "Your fireballs deal %.0f%% more direct damage.\nEquipping this book replaces the Codex: splash becomes inactive." % (game.get("focus_damage_bonus") * 100)
+		"echo_scepter": return "Every fourth regular attack fires one central echo after %.2f s: %.0f%% normal shot damage.\nEcho can pierce and charge Overcharge; it never repeats itself or consumes a charge. No copied Overcharge bonus." % [game.get("echo_delay"), game.get("echo_damage_ratio") * 100]
+		"hunter_scepter": return "Repeated direct hits on each target gain +%.0f%% per additional hit, up to +%.0f%%.\nFirst hit has no bonus. Each target's streak expires after %.1f s without a direct hit. Bonus is direct-only." % [game.get("hunter_step") * 100, game.get("hunter_cap") * 100, game.get("hunter_duration")]
+		"storm_grimoire": return "The first direct hit of each attack jumps lightning to the nearest other enemy: %.0f range, %.0f%% shot damage.\nOne attempt per attack, shared by fan, pierce and echo. Lightning is indirect and cannot chain or charge Overcharge." % [game.get("storm_radius"), game.get("storm_damage_ratio") * 100]
+		"phoenix_grimoire": return "Every 10 direct hits heal %.0f%% maximum HP. Minimum %.1f s between heals.\nHits during cooldown are not stored. Unequipping clears hits but preserves cooldown; restart clears both. Never heals past max HP." % [game.get("phoenix_heal_ratio") * 100, game.get("phoenix_cooldown")]
 	return ""
 
 static func icon(id: String) -> Texture2D:

@@ -63,7 +63,20 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTR
 @export_range(20, 250, 5) var explosion_radius: float = 85.0
 @export_range(0, 3, 0.05) var explosion_damage_ratio: float = 0.6
 @export_range(0, 1000, 1) var echoes_per_wave: int = 10
-@export_range(0, 1, 0.01) var equipment_drop_chance: float = 0.1
+@export_range(0, 1, 0.01) var equipment_drop_chance: float = 0.05
+@export_range(0.05, 0.3, 0.01) var echo_delay: float = 0.15
+@export_range(0.1, 1, 0.05) var echo_damage_ratio: float = 0.6
+@export_range(0.01, 0.2, 0.01) var hunter_step: float = 0.08
+@export_range(0.1, 1, 0.05) var hunter_cap: float = 0.4
+@export_range(0.5, 6, 0.5) var hunter_duration: float = 3.0
+@export_range(50, 300, 10) var storm_radius: float = 150.0
+@export_range(0.1, 1, 0.05) var storm_damage_ratio: float = 0.45
+@export_range(0.01, 0.05, 0.01) var phoenix_heal_ratio: float = 0.03
+@export_range(2, 10, 0.5) var phoenix_cooldown: float = 4.0
+@export_range(0.2, 2, 0.1) var champion_warning: float = 0.7
+@export_range(0.1, 1, 0.05) var champion_duration: float = 0.4
+@export_range(0.2, 2, 0.1) var champion_recovery: float = 0.8
+@export_range(0.5, 8, 0.5) var champion_cooldown: float = 2.0
 @export_range(0, 1, 0.01) var rare_chance: float = 0.25
 @export_range(0, 1, 0.01) var magic_chance: float = 0.5
 @export_range(1, 64, 1) var ground_loot_limit: int = 16
@@ -153,6 +166,17 @@ var wave_roles: Dictionary = {}
 var wave_summaries: Array[Dictionary] = []
 var run_started_usec: int = 0
 var run_ended_usec: int = 0
+var item_clock: float = 0.0
+var echo_attacks: int = 0
+var pending_echo: Dictionary = {}
+var hunter_marks: Dictionary = {}
+var phoenix_hits: int = 0
+var phoenix_left: float = 0.0
+var scepter_epoch: int = 0
+var book_epoch: int = 0
+var last_scepter: String = ""
+var last_book: String = ""
+var attack_context: Dictionary = {}
 
 func _ready() -> void:
 	if OS.get_cmdline_user_args().has("--test-mode"):
@@ -186,6 +210,8 @@ func _process(delta: float) -> void:
 	if get_tree().paused:
 		return
 	elapsed += delta
+	if state in [State.FIGHTING, State.BETWEEN_WAVES, State.BOSS_INTRO]:
+		tick_item_effects(delta)
 	notice_timer = maxf(0.0, notice_timer - delta)
 	if notice_timer <= 0:
 		notice_label.text = ""
@@ -257,6 +283,17 @@ func restart_run() -> void:
 	fan_upgrades = 0
 	mechanic_cards.clear()
 	offered_cards.clear()
+	item_clock = 0
+	echo_attacks = 0
+	pending_echo.clear()
+	hunter_marks.clear()
+	phoenix_hits = 0
+	phoenix_left = 0
+	scepter_epoch += 1
+	book_epoch += 1
+	last_scepter = ""
+	last_book = ""
+	attack_context = {}
 	elapsed = 0.0
 	run_started_usec = Time.get_ticks_usec()
 	run_ended_usec = 0
@@ -434,6 +471,10 @@ func spawn_enemy(forced_role: String = "") -> void:
 			enemy.attack_radius *= 1.4
 		else:
 			enemy.escorts_cleared = champion_escorts_cleared.bind(enemy)
+			enemy.charge_warning = champion_warning
+			enemy.charge_duration = champion_duration
+			enemy.charge_recovery = champion_recovery
+			enemy.charge_interval = champion_cooldown
 	enemy.max_health = minf(1000000, enemy.max_health)
 	wave_roles[role_name] = wave_roles.get(role_name, 0) + 1
 	enemy.frozen = enemies_frozen
@@ -443,6 +484,10 @@ func spawn_enemy(forced_role: String = "") -> void:
 	remaining_to_spawn -= 1
 
 func champion_escorts_cleared(champion: Node) -> bool:
+	champion.charge_warning = champion_warning
+	champion.charge_duration = champion_duration
+	champion.charge_recovery = champion_recovery
+	champion.charge_interval = champion_cooldown
 	return remaining_to_spawn == 0 and enemies.get_children().all(func(other): return other == champion or other.dead)
 
 func start_ascent_test(number: int) -> bool:
@@ -486,6 +531,28 @@ func start_counterplay_test(build_index: int, role_index: int) -> bool:
 				enemy.cooldown = 0
 	remaining_to_spawn = 0
 	show_notice("CE1 isolated test: %s vs %s. Normal wave flow resumes after this encounter." % [["Rapid", "Heavy", "Area"][build_index], ["Chasers", "Seer", "Guardian"][role_index]])
+	return true
+
+func start_item_test(id: String, group: bool) -> bool:
+	if id not in ["echo_scepter", "hunter_scepter", "storm_grimoire", "phoenix_grimoire"] or not start_counterplay_test(0, 0):
+		return false
+	equipment = {"scepter": "", "book": ""}
+	equipment[CATALOG.ITEMS[id].slot] = id
+	quick_upgrades = 1
+	fan_upgrades = 1
+	mechanic_cards.assign([4, 5])
+	upgrades_chosen = 4
+	if not group:
+		for enemy in enemies.get_children().slice(1):
+			enemies.remove_child(enemy)
+			enemy.queue_free()
+	for enemy in enemies.get_children():
+		enemy.max_health = 200 if group else 2000
+		enemy.health = enemy.max_health
+	if id == "phoenix_grimoire":
+		player.health = player.health_limit * 0.6
+	update_build()
+	show_notice("CE4 isolated item test — %s. Seed 42, Quick / Fan / Pierce / Overcharge." % CATALOG.ITEMS[id].name)
 	return true
 
 func start_card_test(profile: int) -> bool:
@@ -612,6 +679,7 @@ func finish_run(victory: bool) -> void:
 		dev_console.close_console()
 	inventory_panel.close_inventory()
 	state = State.FINISHED
+	pending_echo.clear()
 	run_ended_usec = Time.get_ticks_usec()
 	result_victory = victory
 	reward_due = predicted_reward()
@@ -640,12 +708,25 @@ func settle_reward() -> void:
 func _cast(origin: Vector2, direction: Vector2, damage: float) -> void:
 	if state != State.FIGHTING or projectiles.get_child_count() >= 256:
 		return
+	if player.main_shot:
+		attack_context = {"storm_used": false, "scepter_epoch": scepter_epoch, "book_epoch": book_epoch}
+		if equipment.scepter == "echo_scepter":
+			echo_attacks += 1
+			if echo_attacks >= 4:
+				echo_attacks = 0
+				pending_echo = {"left": echo_delay, "direction": direction, "damage": damage * echo_damage_ratio, "context": attack_context}
+	spawn_projectile(origin, direction, damage, attack_context, player.main_shot)
+
+func spawn_projectile(origin: Vector2, direction: Vector2, damage: float, context: Dictionary, main: bool, echo: bool = false) -> void:
+	if state != State.FIGHTING or projectiles.get_child_count() >= 256:
+		return
 	var projectile = PROJECTILE.instantiate()
 	projectile.position = origin
 	projectile.direction = direction
 	projectile.damage = damage
 	projectile.max_hits = 2 if mechanic_cards.has(4) else 1
-	if player.main_shot and player.overcharge_ready and mechanic_cards.has(5):
+	projectile.echoed = echo
+	if main and player.overcharge_ready and mechanic_cards.has(5):
 		projectile.damage = charged_damage(projectile.damage)
 		projectile.charged = true
 		player.overcharge_ready = false
@@ -653,11 +734,26 @@ func _cast(origin: Vector2, direction: Vector2, damage: float) -> void:
 	projectile.opening_bonus = TALENTS.bonuses(active_talents, self).opening
 	projectile.speed = projectile_speed
 	projectile.lifetime = projectile_lifetime
-	projectile.impact.connect(projectile_impact)
+	if equipment.scepter == "hunter_scepter":
+		projectile.direct_modifier = hunter_damage.bind(context)
+	projectile.impact.connect(func(at, amount, primary): projectile_impact(at, amount, primary, context))
 	projectiles.add_child(projectile)
 	shots_fired += 1
 
 func update_build() -> void:
+	if is_instance_valid(boss) and not boss.dead and boss.get_script() == GUARDIAN_ENEMY:
+		boss.charge_interval = champion_cooldown
+		boss.charge_cooldown = minf(boss.charge_cooldown, champion_cooldown)
+	if equipment.scepter != last_scepter:
+		scepter_epoch += 1
+		echo_attacks = 0
+		pending_echo.clear()
+		hunter_marks.clear()
+		last_scepter = equipment.scepter
+	if equipment.book != last_book:
+		book_epoch += 1
+		phoenix_hits = 0
+		last_book = equipment.book
 	var build: Dictionary = build_for(equipment.scepter, equipment.book)
 	player.damage = build.damage
 	player.cast_interval = build.interval
@@ -789,9 +885,74 @@ func drop_item(id: String, at: Vector2) -> bool:
 		codex_spawned = true
 	return true
 
-func projectile_impact(at: Vector2, hit_damage: float, primary: Object) -> void:
+func tick_item_effects(delta: float) -> void:
+	if get_tree().paused or state not in [State.FIGHTING, State.BETWEEN_WAVES, State.BOSS_INTRO]:
+		return
+	item_clock += delta
+	phoenix_left = maxf(0, phoenix_left - delta)
+	for id in hunter_marks.keys():
+		var target = hunter_marks[id].target.get_ref()
+		if target == null or target.dead or hunter_marks[id].until <= item_clock:
+			hunter_marks.erase(id)
+	if not pending_echo.is_empty():
+		pending_echo.left -= delta
+		if pending_echo.left <= 0:
+			var echo: Dictionary = pending_echo
+			pending_echo = {}
+			if equipment.scepter == "echo_scepter" and echo.context.scepter_epoch == scepter_epoch:
+				spawn_projectile(player.global_position + echo.direction * 25, echo.direction, echo.damage, echo.context, false, true)
+
+func hunter_damage(target: Object, amount: float, context: Dictionary) -> float:
+	if state != State.FIGHTING or equipment.scepter != "hunter_scepter" or context.get("scepter_epoch", -1) != scepter_epoch:
+		return amount
+	var id: int = target.get_instance_id()
+	var mark: Dictionary = hunter_marks.get(id, {"hits": 0, "until": 0.0, "target": weakref(target)})
+	if mark.until <= item_clock:
+		mark.hits = 0
+	var bonus: float = minf(hunter_cap, mark.hits * hunter_step)
+	mark.hits = mini(ceili(hunter_cap / hunter_step), mark.hits + 1)
+	mark.until = item_clock + hunter_duration
+	hunter_marks[id] = mark
+	return amount * (1.0 + bonus)
+
+func item_direct_hit(primary: Object, amount: float, context: Dictionary) -> void:
+	if state != State.FIGHTING or player.health <= 0 or context.get("book_epoch", -1) != book_epoch:
+		return
+	if equipment.book == "phoenix_grimoire" and phoenix_left <= 0:
+		phoenix_hits += 1
+		if phoenix_hits >= 10:
+			phoenix_hits = 0
+			phoenix_left = phoenix_cooldown
+			var healing: float = minf(player.health_limit - player.health, player.health_limit * phoenix_heal_ratio)
+			if healing > 0:
+				player.health += healing
+				player.health_changed.emit(player.health, player.health_limit)
+				if effects.size() < 512:
+					effects.append({"at": player.global_position, "amount": healing, "killed": false, "life": 0.5, "heal": true})
+	if equipment.book != "storm_grimoire" or context.get("storm_used", true):
+		return
+	# Consume the first-hit attempt even if no second target is in range.
+	context.storm_used = true
+	var nearest = null
+	var distance: float = storm_radius * storm_radius
+	for enemy in enemies.get_children():
+		if enemy == primary or enemy.dead:
+			continue
+		var candidate: float = primary.global_position.distance_squared_to(enemy.global_position)
+		if candidate <= distance:
+			distance = candidate
+			nearest = enemy
+	if nearest != null:
+		var from: Vector2 = primary.global_position
+		var to: Vector2 = nearest.global_position
+		nearest.take_damage(amount * storm_damage_ratio, from.direction_to(to))
+		if effects.size() < 512:
+			effects.append({"at": from, "to": to, "amount": 0, "killed": false, "life": 0.25, "duration": 0.25, "lightning": true})
+
+func projectile_impact(at: Vector2, hit_damage: float, primary: Object, context: Dictionary = {}) -> void:
 	shots_hit += 1
 	player.record_direct_hit()
+	item_direct_hit(primary, hit_damage, context)
 	# Snapshot the direct kill before Codex splash can kill other enemies.
 	if mechanic_cards.has(3) and is_instance_valid(primary) and primary.dead and not primary.has_meta("ember_burst_triggered"):
 		primary.set_meta("ember_burst_triggered", true)
@@ -986,6 +1147,14 @@ func _draw() -> void:
 		var color := Color("ffd291") if effect.killed else Color("f8e5c2")
 		color.a = alpha
 		var point: Vector2 = effect.at
+		if effect.get("heal", false):
+			draw_arc(point, 24 + (1 - alpha) * 22, 0, TAU, 24, Color(0.4, 1, 0.65, alpha), 3)
+			draw_string(ThemeDB.fallback_font, point + Vector2(20, -25), "+%.1f HP" % effect.amount, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.4, 1, 0.65, alpha))
+			continue
+		if effect.get("lightning", false):
+			var middle: Vector2 = (point + effect.to) * 0.5 + point.direction_to(effect.to).orthogonal() * 12
+			draw_polyline(PackedVector2Array([point, middle, effect.to]), Color(0.6, 0.85, 1, alpha), 4, true)
+			continue
 		if effect.get("blocked", false):
 			draw_string(ThemeDB.fallback_font, point + Vector2(-9, -25 - (1 - alpha) * 25), "%s BLOCKED" % str(snappedf(effect.amount, 0.1)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.55, 0.84, 1.0, alpha))
 			continue

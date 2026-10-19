@@ -7,7 +7,7 @@ signal armor_absorbed(at: Vector2, amount: float)
 @export_range(0.2, 2, 0.1) var charge_warning: float = 0.7
 @export_range(0.1, 1, 0.05) var charge_duration: float = 0.4
 @export_range(0.2, 2, 0.1) var charge_recovery: float = 0.8
-@export_range(1, 8, 0.5) var charge_interval: float = 3.0
+@export_range(0.5, 8, 0.5) var charge_interval: float = 2.0
 @export_range(300, 1500, 50) var charge_speed: float = 850.0
 
 enum Charge { WALKING, WARNING, RUSHING, RECOVERY }

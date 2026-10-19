@@ -1,5 +1,7 @@
 # CE3 — Build Discovery & Card Synergies
 
+Current CE4 item rules and profile v9/87 settings are in [CE4_PLAYTEST.md](CE4_PLAYTEST.md). The card rules below remain; profile counts in this historical CE3 guide describe its original package.
+
 Start natural runs with F5. The existing wave 2/4/5 choices in each five-wave block now offer up to three distinct cards drawn uniformly without replacement from six valid cards. Bosses use the same pool. There is no build weighting or guaranteed synergy. Offers stay fixed while inspecting equipment or tuning F1; unavailable cards are removed rather than rerolled. An entirely exhausted pool continues without an upgrade.
 
 | Card | Effect | Repeatable? |

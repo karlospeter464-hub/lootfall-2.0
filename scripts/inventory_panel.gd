@@ -262,6 +262,10 @@ func item_effect(id: String) -> String:
 		"swift_scepter": return "Swift Scepter (%.0f%% shorter interval)" % (game.scepter_cast_reduction * 100)
 		"focus_grimoire": return "Focus Grimoire (+%.0f%% gear damage)" % (game.focus_damage_bonus * 100)
 		"cinder_codex": return "Cinder Codex (impact splash, %.0f radius)" % game.explosion_radius
+		"echo_scepter": return "Echo Scepter (every 4th attack: one delayed %.0f%% normal shot)" % (game.echo_damage_ratio * 100)
+		"hunter_scepter": return "Hunter's Scepter (conditional +%.0f%% per additional target hit, cap %.0f%%)" % [game.hunter_step * 100, game.hunter_cap * 100]
+		"storm_grimoire": return "Storm Grimoire (first direct hit: %.0f%% lightning / %.0f range)" % [game.storm_damage_ratio * 100, game.storm_radius]
+		"phoenix_grimoire": return "Phoenix Grimoire (10 direct hits: %.0f%% max-HP heal / %.1f s cooldown)" % [game.phoenix_heal_ratio * 100, game.phoenix_cooldown]
 	return "none"
 
 func refresh_build() -> void:
@@ -281,6 +285,12 @@ func refresh_build() -> void:
 	if cards_text.text.is_empty():
 		cards_text.text = "No run cards selected yet."
 	effect_stats.text = "Run gear: " + item_effect(game.equipment.scepter) + "\n" + item_effect(game.equipment.book)
+	if game.equipment.scepter == "echo_scepter":
+		effect_stats.text += "\nEcho attacks: %d/4%s" % [game.echo_attacks, " — echo pending" if not game.pending_echo.is_empty() else ""]
+	if game.equipment.scepter == "hunter_scepter":
+		effect_stats.text += "\nHunter: %d separate target streaks; not included in normal-shot damage" % game.hunter_marks.size()
+	if game.equipment.book == "phoenix_grimoire":
+		effect_stats.text += "\nPhoenix: " + ("cooldown %.1f s; hits not stored" % game.phoenix_left if game.phoenix_left > 0 else "%d/10 direct hits" % game.phoenix_hits)
 	if game.player.overcharge_enabled:
 		effect_stats.text += "\nOvercharge: " + ("READY — consumed by next main shot" if game.player.overcharge_ready else "%d/4 direct hits" % game.player.overcharge_hits)
 	effect_stats.text += "\nTemporary buffs: " + ("Second Wind, %.1f s left (interval shown above)" % game.player.haste_remaining if game.player.haste_remaining > 0 else "none")

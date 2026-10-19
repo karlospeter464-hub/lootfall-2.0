@@ -1,5 +1,7 @@
 # CE3 follow-up — Combat polish & build overview
 
+CE4 retains this UI and charge behavior but changes the walking cooldown to **2 s after recovery**, adds live F1 timing controls and uses profile v9/87 fields. See [CE4_PLAYTEST.md](CE4_PLAYTEST.md). Values below describe the original follow-up.
+
 This follows the local CE3 build. Six cards, card timing, Seer balance, loot, Echoes, permanent talents and save formats remain unchanged. Human playtesting found CE3 fun; this package's new balance and readability still need acceptance.
 
 ## Ember Burst
