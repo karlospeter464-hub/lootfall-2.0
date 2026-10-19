@@ -2,6 +2,10 @@
 
 Open `project.godot` in Godot 4.7 and press **F5**. Main scene: `scenes/arena.tscn`. Game UI and code are English.
 
+## First external Windows playtest build
+
+A standalone **Windows x86_64 release v0.1** is packaged locally outside Git, with CE5 gameplay frozen at `00e378d`. See [WINDOWS_PLAYTEST.md](WINDOWS_PLAYTEST.md) for the exact ZIP path, manifest, checksum, export reproduction and smoke-test limits. `export_presets.cfg` defines Windows Desktop; templates/build artifacts/test data are not committed. No new gameplay or balance changes. Source regression: 898 checks; exported-PCK regression under the test runtime: 688 checks; package audit: 6 checks, all passing. Native EXE start/F1/run/combat/death/town observed; full native progression acceptance remains open. No upload or GitHub push.
+
 ## CE5: Skill Tree Refresh & Early Progression
 
 The three 30-Echo roots are now **Kindling** (kill → one empowered central shot), **Emberguard** (one nonlethal-hit heal per wave) and **Arcane Momentum** (four direct hits → temporary movement speed). The same fifteen IDs, connections, costs, free exact refunds and safe progress v2 are preserved. Existing root purchases receive the new effects next run, replacing their old flat stats. The refreshed tree distinguishes owned/affordable/available/locked nodes, supports arrows and shows later goals in town.
