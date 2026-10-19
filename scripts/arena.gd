@@ -98,6 +98,12 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTR
 @export_range(0, 0.5, 0.01) var tree_wave_heal: float = 0.06
 @export_range(0, 0.8, 0.05) var tree_hurt_haste: float = 0.2
 @export_range(0.5, 10, 0.5) var tree_haste_duration: float = 3.0
+@export_range(0, 2, 0.05) var tree_kindling_bonus: float = 0.25
+@export_range(0.5, 10, 0.5) var tree_kindling_duration: float = 5.0
+@export_range(0, 0.5, 0.01) var tree_emberguard_heal: float = 0.08
+@export_range(0, 1, 0.01) var tree_momentum_bonus: float = 0.12
+@export_range(0.5, 10, 0.5) var tree_momentum_duration: float = 3.0
+var emberguard_used: bool = false
 
 @onready var player = $Player
 @onready var enemies: Node2D = $Enemies
@@ -187,6 +193,7 @@ func _ready() -> void:
 	player.arena_bounds = BOUNDS
 	player.cast.connect(_cast)
 	player.health_changed.connect(_health_changed)
+	player.survived_hit.connect(emberguard)
 	player.defeated.connect(func(): finish_run(false))
 	loot = Node2D.new()
 	loot.name = "Loot"
@@ -312,6 +319,7 @@ func restart_run() -> void:
 	break_clock = 1.2
 	state = State.BETWEEN_WAVES
 	last_healed_wave = 0
+	emberguard_used = false
 	active_talents = progress.talents.duplicate()
 	if is_instance_valid(town_panel):
 		town_panel.close_town()
@@ -351,6 +359,7 @@ func begin_wave() -> void:
 		finish_run(true)
 		return
 	wave += 1
+	emberguard_used = false
 	best_wave = maxi(best_wave, wave)
 	wave_budget = wave_settings(wave).budget
 	remaining_to_spawn = wave_budget
@@ -726,6 +735,9 @@ func spawn_projectile(origin: Vector2, direction: Vector2, damage: float, contex
 	projectile.damage = damage
 	projectile.max_hits = 2 if mechanic_cards.has(4) else 1
 	projectile.echoed = echo
+	if main and not echo and player.kindling_remaining > 0 and active_talents.has("power_1"):
+		projectile.kindling_bonus = tree_kindling_bonus
+		player.kindling_remaining = 0
 	if main and player.overcharge_ready and mechanic_cards.has(5):
 		projectile.damage = charged_damage(projectile.damage)
 		projectile.charged = true
@@ -764,6 +776,8 @@ func update_build() -> void:
 	player.health_limit = player.max_health * (1.0 + perks.health)
 	player.hurt_haste_ratio = perks.haste
 	player.hurt_haste_duration = tree_haste_duration
+	player.momentum_bonus = tree_momentum_bonus if active_talents.has("flow_1") else 0.0
+	player.momentum_duration = tree_momentum_duration
 	player.health = minf(player.health, player.health_limit)
 	player.health_changed.emit(player.health, player.health_limit)
 	if is_instance_valid(inventory_panel) and inventory_panel.is_open:
@@ -857,6 +871,8 @@ func destroy_bag_item(index: int) -> bool:
 
 func enemy_slain(at: Vector2) -> void:
 	kills += 1
+	if state == State.FIGHTING and player.health > 0 and active_talents.has("power_1"):
+		player.kindling_remaining = tree_kindling_duration
 	if loot.get_child_count() >= ground_loot_limit or state != State.FIGHTING or (rng.randf() >= equipment_drop_chance and equipment_drop_chance < 1.0):
 		return
 	var id: String = CATALOG.roll_item(rng, drop_chance, rare_chance, magic_chance, not codex_spawned)
@@ -979,6 +995,16 @@ func show_blocked(at: Vector2, amount: float) -> void:
 	# Absorbed damage is feedback only, never dealt damage or another hit.
 	if effects.size() < 512:
 		effects.append({"at": at + Vector2(-18, -24), "amount": amount, "killed": false, "blocked": true, "life": 0.85, "duration": 0.85})
+
+func emberguard() -> void:
+	if state != State.FIGHTING or emberguard_used or not active_talents.has("vitality_1"):
+		return
+	emberguard_used = true
+	var healing: float = minf(player.health_limit - player.health, player.health_limit * tree_emberguard_heal)
+	player.health += healing
+	player.health_changed.emit(player.health, player.health_limit)
+	if healing > 0 and effects.size() < 512:
+		effects.append({"at": player.global_position, "amount": healing, "killed": false, "life": 0.5, "heal": true})
 
 func _health_changed(current: float, maximum: float) -> void:
 	damage_taken += maxf(0.0, last_health - current)

@@ -2,6 +2,12 @@
 
 Open `project.godot` in Godot 4.7 and press **F5**. Main scene: `scenes/arena.tscn`. Game UI and code are English.
 
+## CE5: Skill Tree Refresh & Early Progression
+
+The three 30-Echo roots are now **Kindling** (kill → one empowered central shot), **Emberguard** (one nonlethal-hit heal per wave) and **Arcane Momentum** (four direct hits → temporary movement speed). The same fifteen IDs, connections, costs, free exact refunds and safe progress v2 are preserved. Existing root purchases receive the new effects next run, replacing their old flat stats. The refreshed tree distinguishes owned/affordable/available/locked nodes, supports arrows and shows later goals in town.
+
+See [CE5_PLAYTEST.md](CE5_PLAYTEST.md) for rules, profile compatibility and tonight's short acceptance test. With an empty wallet, **two cleared waves pay the 30 Echoes needed for a root**; one cleared wave pays 10. There is no new first-run reward guarantee. F1 now has 92 fields; profiles v10 accept v1–v9. Older CE3/CE4 guides describe their original package; CE5 is the current tree/profile reference.
+
 ## CE4: Item Discovery & Synergy Expansion
 
 Eight items now share the same two slots and eight-field bag. New: **Echo Scepter** (every fourth attack repeats the central shot), **Hunter's Scepter** (capped per-target direct-hit streak), **Storm Grimoire** (one lightning attempt per attack) and **Phoenix Grimoire** (10 direct hits heal, with cooldown). Default item chance is **5%**; the rarity cascade is unchanged. Champion walking cooldown defaults to **2 s after recovery**, adjustable with its other timings in F1.
@@ -20,13 +26,13 @@ See [CE3_PLAYTEST.md](CE3_PLAYTEST.md) for exact interactions, three isolated F1
 
 The game starts in **Emberhaven**. Choose **Start Run**. Death or a prototype safety stop pays Echoes once, then **Return to Town** opens the city menu. **Awaken the Skill Tree** lets you spend Echoes on permanent talents before your next attempt. Town is a menu, not a walkable map.
 
-The first region has 15 nodes: three small nodes, one notable and one key node on each of Power, Vitality and Flow. Buy a root or a node connected from **any one** of its listed predecessors. Cross-links connect Power II → Vitality III, Vitality II → Flow III and Flow II → Power III. All 15 can be active together. Default costs by tier are **30 / 45 / 65 / 90 / 130 Echoes**; the entire region costs **1080**.
+The first region has 15 nodes: one entry effect, two small nodes, one notable and one key node on each of Power, Vitality and Flow. Buy a root or a node connected from **any one** of its listed predecessors. Cross-links connect Power II → Vitality III, Vitality II → Flow III and Flow II → Power III. All 15 can be active together. Default costs by tier are **30 / 45 / 65 / 90 / 130 Echoes**; the entire region costs **1080**.
 
 | Path | Small node / notable | Key node |
 | --- | --- | --- |
-| Power | +4% damage each / +8% damage | **First Spark:** +35% direct-hit damage against full-health enemies; does not amplify splash |
-| Vitality | +5% max HP each / +10% max HP | **Renewal:** heal 6% of effective max HP once per cleared wave, capped at full health |
-| Flow | 3% shorter interval each / 5% shorter interval | **Second Wind:** after nonlethal health loss, 20% shorter attack interval for 3 seconds; refreshes without stacking |
+| Power | Kindling entry; two +4% damage nodes / +8% notable | **First Spark:** +35% direct-hit damage against full-health enemies; does not amplify splash |
+| Vitality | Emberguard entry; two +5% max HP nodes / +10% notable | **Renewal:** heal 6% of effective max HP once per cleared wave, capped at full health |
+| Flow | Momentum entry; two 3% interval nodes / 5% notable | **Second Wind:** after nonlethal health loss, 20% shorter attack interval for 3 seconds; refreshes without stacking |
 
 Power and Vitality bonuses add within their paths; Power then multiplies with cards and equipment. Flow's summed reduction (capped at 60%) multiplies with cards and the Swift Scepter. Second Wind multiplies that interval temporarily; its timer stops while paused. Base HP remains a separate F1 value from the effective maximum.
 
@@ -51,7 +57,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 **F1** opens/closes the console; **Escape** closes it. Gameplay pauses while it is open. Closing preserves an existing pause, upgrade choice or result screen. SpinBox fields accept keyboard entry and arrow controls; each field shows when it applies.
 
-87 settings are split into tabs:
+92 settings are split into tabs:
 
 | Tab | Adjustable values |
 | --- | --- |
@@ -60,7 +66,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 | Enemies | Base health/speed/damage, health/speed growth per wave, seer cap/warning/recovery/radius/HP/interruption; guardian first wave/cadence/cap/HP/speed/flat armor/minimum damage |
 | Combat & loot | Projectile speed/lifetime/spread, existing card strengths, Burst radius/damage and Overcharge bonus, separate item chance and Legendary/Rare/Magic checks, pickup radius, ground cap, all eight item effects and their tuning |
 | Rewards & tools | Early Echoes tiers, late-wave reward/growth, isolated wave jump; invulnerability, freeze enemies, restore HP, force a physical Codex or selected item drop, defeat active enemies, apply RNG seed |
-| Skill tree | Five tier prices, small/notable bonuses for all paths, First Spark, Renewal and Second Wind values/duration |
+| Skill tree | Five tier prices, small/notable bonuses for all paths, First Spark, Renewal and Second Wind values/duration; three entry effects (five tuning fields) |
 
 **Application:** Player/build settings update the actual build while preserving already chosen cards. Lowering max HP clamps current health; raising it does not heal. Enemy stats affect new spawns; lowering the cap does not delete existing enemies. Wave budgets change when the next wave starts. Projectile speed/lifetime affect new shots. Codex explosion settings affect the next impact. Card strength edits update already chosen cards and the choice text when the next choice opens. Cards repeat after stages 2/4/5 of every five-wave block. Effective interval is at least 0.08 seconds, fan count at most 9; saturated cards are disabled. Live projectiles are capped at 256.
 
@@ -68,7 +74,7 @@ Town purchases apply when **Start Run** takes a snapshot of the owned talents. *
 
 **Save profile / Load profile:** Balancing values are saved separately from game progress. Profiles load manually; restarting the application restores Inspector defaults until you load your profile. Loading validates every value and known key before applying any of them. Profiles do not contain currency, current health, items, RNG state or test switches.
 
-New profiles use version 9 with 87 settings. Versions 1/2/3/4/5/6/7/8 (28/33/48/52/54/63/71/74 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. **Legacy probability numbers now use the new model:** the previous Codex chance becomes the Legendary check per item, and previous other-gear chance becomes the total item chance. The load status explicitly calls out this changed basis; old profiles do not restore the old drop algorithm. Rare/Magic use startup defaults if absent. F1 metrics show conditional-derived shares per item and chances per eligible kill, adjusted for the Codex limit.
+New profiles use version 10 with 92 settings. Versions 1/2/3/4/5/6/7/8/9 (28/33/48/52/54/63/71/74/87 values) remain supported: newer fields use startup defaults with a status message. Loading leaves the source file untouched. Unknown versions, missing/unknown keys and invalid values reject the entire load. **Legacy probability numbers now use the new model:** the previous Codex chance becomes the Legendary check per item, and previous other-gear chance becomes the total item chance. The load status explicitly calls out this changed basis; old profiles do not restore the old drop algorithm. Rare/Magic use startup defaults if absent. F1 metrics show conditional-derived shares per item and chances per eligible kill, adjusted for the Codex limit.
 
 Old numeric wave limits are preserved as safety stops; Reset defaults restores the new 100-wave ascent baseline. Tree effect tuning affects active talents live; ownership changes apply next run. Prices affect new purchases, not refunds. Defaults never erase owned talents or paid prices. Seer values affect new spawns; a zero seer cap disables new seers without deleting existing enemies. Old profiles can restore their previous overall enemy cap.
 
@@ -100,12 +106,13 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 & $godotExe --headless --path . --script res://tests/card_synergy_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/combat_polish_test.gd -- --test-mode
 & $godotExe --headless --path . --script res://tests/item_synergy_test.gd -- --test-mode
+& $godotExe --headless --path . --script res://tests/early_progression_test.gd -- --test-mode
 & $godotExe --headless --path . --quit-after 120 -- --test-mode
 ```
 
-The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
+For parallel suites use a different APPDATA subdirectory per process to avoid MCP registry file contention. The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 64 arena + 54 loot/console + 50 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish + 65 item synergy = **835 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six CE4 gameplay scripts passed Godot MCP `script_check`; native CE4 inventory/lightning/echo previews were inspected. These are automated checks, not human balance acceptance.
+Current verification: 64 arena + 54 loot/console + 50 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish + 65 item synergy + 63 early progression = **898 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six CE5 gameplay/UI scripts passed Godot MCP `script_check`; four native CE5 town/tree previews were inspected. See CE5_PLAYTEST.md for current root and layout coverage. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 

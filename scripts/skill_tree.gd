@@ -2,17 +2,17 @@ extends RefCounted
 
 # Cross-links join the third small node to the previous tier of a neighboring path.
 const NODES := {
-	"power_1": {"name": "Kindle I", "branch": "Power", "tier": 1, "parents": []},
+	"power_1": {"name": "Kindling", "branch": "Power", "tier": 1, "parents": []},
 	"power_2": {"name": "Kindle II", "branch": "Power", "tier": 2, "parents": ["power_1"]},
 	"power_3": {"name": "Kindle III", "branch": "Power", "tier": 3, "parents": ["power_2", "flow_2"]},
 	"power_4": {"name": "Burning Purpose", "branch": "Power", "tier": 4, "parents": ["power_3"]},
 	"power_5": {"name": "First Spark", "branch": "Power", "tier": 5, "parents": ["power_4"]},
-	"vitality_1": {"name": "Endure I", "branch": "Vitality", "tier": 1, "parents": []},
+	"vitality_1": {"name": "Emberguard", "branch": "Vitality", "tier": 1, "parents": []},
 	"vitality_2": {"name": "Endure II", "branch": "Vitality", "tier": 2, "parents": ["vitality_1"]},
 	"vitality_3": {"name": "Endure III", "branch": "Vitality", "tier": 3, "parents": ["vitality_2", "power_2"]},
 	"vitality_4": {"name": "Deep Roots", "branch": "Vitality", "tier": 4, "parents": ["vitality_3"]},
 	"vitality_5": {"name": "Renewal", "branch": "Vitality", "tier": 5, "parents": ["vitality_4"]},
-	"flow_1": {"name": "Rhythm I", "branch": "Flow", "tier": 1, "parents": []},
+	"flow_1": {"name": "Arcane Momentum", "branch": "Flow", "tier": 1, "parents": []},
 	"flow_2": {"name": "Rhythm II", "branch": "Flow", "tier": 2, "parents": ["flow_1"]},
 	"flow_3": {"name": "Rhythm III", "branch": "Flow", "tier": 3, "parents": ["flow_2", "vitality_2"]},
 	"flow_4": {"name": "Unbroken Rhythm", "branch": "Flow", "tier": 4, "parents": ["flow_3"]},
@@ -35,7 +35,7 @@ static func bonuses(owned: Dictionary, game: Object) -> Dictionary:
 	var result := {"damage": 0.0, "health": 0.0, "interval": 0.0, "opening": 0.0, "healing": 0.0, "haste": 0.0}
 	for id in owned:
 		var node: Dictionary = NODES[id]
-		if node.tier == 5:
+		if node.tier == 1 or node.tier == 5:
 			continue
 		var notable: bool = node.tier == 4
 		match node.branch:
@@ -52,6 +52,10 @@ static func bonuses(owned: Dictionary, game: Object) -> Dictionary:
 
 static func description(id: String, game: Object) -> String:
 	var node: Dictionary = NODES[id]
+	match id:
+		"power_1": return "After a kill, your next central fireball within %.1fs deals +%.0f%% direct damage. One shot; kills refresh readiness. No bonus to fan side shots, Echo or splash." % [game.get("tree_kindling_duration"), game.get("tree_kindling_bonus") * 100]
+		"vitality_1": return "Your first nonlethal enemy hit each wave restores %.0f%% maximum health. Once per wave, capped at full HP. Cannot revive you." % (game.get("tree_emberguard_heal") * 100)
+		"flow_1": return "Every 4 direct projectile hits grant +%.0f%% movement speed for %.1fs. Fan and piercing hits count; splash does not. Refreshes without stacking." % [game.get("tree_momentum_bonus") * 100, game.get("tree_momentum_duration")]
 	if node.tier == 5:
 		match node.branch:
 			"Power": return "Direct hits deal %.0f%% more damage to enemies at full health. Splash keeps its normal damage." % (game.get("tree_opening_bonus") * 100)

@@ -5,6 +5,7 @@ const MAX_PROJECTILES_PER_CAST: int = 9
 
 signal health_changed(current: float, maximum: float)
 signal defeated
+signal survived_hit
 signal cast(origin: Vector2, direction: Vector2, damage: float)
 
 @export_range(50, 600, 5) var move_speed: float = 245.0
@@ -32,6 +33,11 @@ var main_shot: bool = true
 var overcharge_enabled: bool = false
 var overcharge_hits: int = 0
 var overcharge_ready: bool = false
+var kindling_remaining: float = 0.0
+var momentum_hits: int = 0
+var momentum_remaining: float = 0.0
+var momentum_bonus: float = 0.0
+var momentum_duration: float = 3.0
 
 func _ready() -> void:
 	reset_run()
@@ -51,6 +57,9 @@ func reset_run() -> void:
 	overcharge_hits = 0
 	overcharge_ready = false
 	main_shot = true
+	kindling_remaining = 0.0
+	momentum_hits = 0
+	momentum_remaining = 0.0
 	health_changed.emit(health, max_health)
 	queue_redraw()
 
@@ -58,8 +67,10 @@ func _physics_process(delta: float) -> void:
 	cooldown = maxf(0.0, cooldown - delta)
 	protection = maxf(0.0, protection - delta)
 	haste_remaining = maxf(0.0, haste_remaining - delta)
+	kindling_remaining = maxf(0.0, kindling_remaining - delta)
+	momentum_remaining = maxf(0.0, momentum_remaining - delta)
 	if controls_enabled and health > 0.0:
-		velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * move_speed
+		velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * effective_move_speed()
 		move_and_slide()
 		position = position.clamp(arena_bounds.position + Vector2.ONE * 17, arena_bounds.end - Vector2.ONE * 17)
 		var mouse_direction: Vector2 = get_global_mouse_position() - global_position
@@ -71,6 +82,9 @@ func _physics_process(delta: float) -> void:
 
 func effective_interval() -> float:
 	return interval_with_haste(cast_interval)
+
+func effective_move_speed() -> float:
+	return move_speed * (1.0 + momentum_bonus if momentum_remaining > 0 else 1.0)
 
 func interval_with_haste(interval: float) -> float:
 	return maxf(MIN_CAST_INTERVAL, interval * (1.0 - hurt_haste_ratio if haste_remaining > 0 else 1.0))
@@ -90,6 +104,11 @@ func attack(direction: Vector2) -> void:
 	main_shot = true
 
 func record_direct_hit() -> void:
+	if momentum_bonus > 0:
+		momentum_hits += 1
+		if momentum_hits >= 4:
+			momentum_hits = 0
+			momentum_remaining = momentum_duration
 	if not overcharge_enabled or overcharge_ready:
 		return
 	overcharge_hits += 1
@@ -108,10 +127,16 @@ func take_damage(amount: float) -> void:
 	health_changed.emit(health, health_limit)
 	if health <= 0.0:
 		defeated.emit()
+	else:
+		survived_hit.emit()
 	queue_redraw()
 
 func _draw() -> void:
 	draw_ellipse_shadow()
+	if kindling_remaining > 0:
+		draw_arc(Vector2.ZERO, 34, 0, TAU, 32, Color("ffb057"), 3)
+	if momentum_remaining > 0:
+		draw_arc(Vector2(0, 18), 28, 0, PI, 18, Color("84b8db"), 4)
 	var robe: Color = Color("498cbb") if protection <= 0.0 else Color("e8cab0")
 	draw_colored_polygon(PackedVector2Array([Vector2(-16, 16), Vector2(-11, -8), Vector2(0, -20), Vector2(12, -8), Vector2(17, 16), Vector2(0, 23)]), robe.darkened(0.3))
 	draw_circle(Vector2(0, -5), 12, robe)

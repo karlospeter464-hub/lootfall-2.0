@@ -238,7 +238,7 @@ func run() -> void:
 	var dev = game.dev_console
 	check(dev.save_profile(), "CE3 profile saves")
 	var profile: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(profile.version == 9 and profile.values.size() == 87, "Version 9 contains 87 numeric settings")
+	check(profile.version == 10 and profile.values.size() == 92, "Version 10 contains 92 numeric settings")
 	profile.version = 7
 	for field in dev.FIELDS:
 		if dev.field_version(field) > 7:

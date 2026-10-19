@@ -99,7 +99,7 @@ func run() -> void:
 	var dev = game.dev_console
 	check(dev.save_profile(), "The new cascade settings save in a real profile")
 	var profile: Dictionary = SAFE_JSON.read_object(dev.profile_path)
-	check(profile.version == 9 and profile.values.size() == 87, "New profiles contain all 87 values with version seven")
+	check(profile.version == 10 and profile.values.size() == 92, "New profiles contain all 92 values with version ten")
 	var old: Dictionary = profile.duplicate(true)
 	old.version = 4
 	for field in dev.FIELDS:

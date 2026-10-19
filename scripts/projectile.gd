@@ -8,6 +8,7 @@ signal impact(at: Vector2, damage: float, primary: Object)
 var direction: Vector2 = Vector2.RIGHT
 var damage: float = 14.0
 var opening_bonus: float = 0.0
+var kindling_bonus: float = 0.0
 var age: float = 0.0
 var max_hits: int = 1
 var hit_bodies: Array[RID] = []
@@ -31,6 +32,7 @@ func _physics_process(delta: float) -> void:
 		if body.has_method("take_damage") and not body.get("dead") and damage > 0:
 			var full_health: bool = body.get("health") != null and body.get("max_health") != null and is_equal_approx(float(body.get("health")), float(body.get("max_health")))
 			var direct: float = damage * (1.0 + opening_bonus if full_health else 1.0)
+			direct *= 1.0 + kindling_bonus
 			if direct_modifier.is_valid():
 				direct = direct_modifier.call(body, direct)
 			body.call("take_projectile_hit" if body.has_method("take_projectile_hit") else "take_damage", direct, direction)
@@ -45,6 +47,8 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if kindling_bonus > 0:
+		draw_arc(Vector2.ZERO, 12, 0, TAU, 16, Color("ffb057"), 3)
 	if echoed:
 		draw_arc(Vector2.ZERO, 9, 0, TAU, 12, Color("c8a1ff"), 2)
 	if charged:

@@ -300,6 +300,12 @@ func refresh_build() -> void:
 		effect_stats.text += "\nSecond Wind: available on health loss; currently inactive"
 	if game.active_talents.has("vitality_5"):
 		effect_stats.text += "\nRenewal: heals %.0f%% max HP on wave clear" % (game.tree_wave_heal * 100)
+	if game.active_talents.has("power_1"):
+		effect_stats.text += "\nKindling: " + ("READY %.1f s — next central shot" % game.player.kindling_remaining if game.player.kindling_remaining > 0 else "a kill arms the next central shot")
+	if game.active_talents.has("vitality_1"):
+		effect_stats.text += "\nEmberguard: " + ("used this wave" if game.emberguard_used else "ready for first nonlethal enemy hit")
+	if game.active_talents.has("flow_1"):
+		effect_stats.text += "\nMomentum: %d/4 hits; speed %.0f%s" % [game.player.momentum_hits, game.player.effective_move_speed(), " (%.1f s left)" % game.player.momentum_remaining if game.player.momentum_remaining > 0 else ""]
 	effect_stats.text += "\nPermanent talents: %d in this run's snapshot" % game.active_talents.size()
 
 func equip_selected() -> void:

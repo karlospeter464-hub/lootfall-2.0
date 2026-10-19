@@ -199,16 +199,18 @@ func capture() -> void:
 			game.equip_item(1)
 			game.inventory_panel.open_inventory()
 			game.inventory_panel.bag_buttons[3].grab_focus()
-		elif argument in ["--view=town", "--view=skilltree"]:
+		elif argument in ["--view=town", "--view=skilltree", "--view=ce5_tree", "--view=ce5_town", "--view=ce5_kindling", "--view=ce5_momentum"]:
 			game.finish_run(false)
 			game.return_to_town()
 			game.progress.award(500, 3)
 			for id in ["power_1", "power_2", "vitality_3", "vitality_4"]:
 				game.buy_talent(id)
 			game.town_panel.refresh()
-			if argument == "--view=skilltree":
+			if argument in ["--view=skilltree", "--view=ce5_tree", "--view=ce5_kindling", "--view=ce5_momentum"]:
 				game.town_panel.show_tree()
 				game.town_panel.node_buttons["vitality_5"].grab_focus()
+				if argument in ["--view=ce5_kindling", "--view=ce5_momentum"]:
+					game.town_panel.node_buttons["power_1" if argument == "--view=ce5_kindling" else "flow_1"].grab_focus()
 		elif argument == "--view=console":
 			game.dev_console.open_console()
 		elif argument == "--view=tuning":

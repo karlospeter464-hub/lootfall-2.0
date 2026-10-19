@@ -92,6 +92,11 @@ const FIELDS := [
 	["Skill tree", "arena", "tree_wave_heal", "Renewal: max-health ratio", 0, 0.5, 0.01, "Next newly cleared wave"],
 	["Skill tree", "arena", "tree_hurt_haste", "Second Wind: interval reduction", 0, 0.8, 0.05, "Live; triggers on actual health loss"],
 	["Skill tree", "arena", "tree_haste_duration", "Second Wind: duration (s)", 0.5, 10, 0.5, "Next nonlethal hit"],
+	["Skill tree", "arena", "tree_kindling_bonus", "Kindling: direct damage bonus", 0, 2, 0.05, "Next empowered central shot; no Echo or splash"],
+	["Skill tree", "arena", "tree_kindling_duration", "Kindling: ready duration (s)", 0.5, 10, 0.5, "Next kill; gameplay time"],
+	["Skill tree", "arena", "tree_emberguard_heal", "Emberguard: max-HP heal ratio", 0, 0.5, 0.01, "First nonlethal enemy hit each wave"],
+	["Skill tree", "arena", "tree_momentum_bonus", "Momentum: movement speed bonus", 0, 1, 0.01, "Live for active talent; never changes base speed"],
+	["Skill tree", "arena", "tree_momentum_duration", "Momentum: duration (s)", 0.5, 10, 0.5, "Next fourth direct hit"],
 ]
 
 var game
@@ -406,13 +411,13 @@ func save_profile() -> bool:
 	for field in FIELDS:
 		var target: Object = game.player if field[1] == "player" else game
 		values[field[1] + "." + field[2]] = target.get(field[2])
-	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 9, "values": values})
+	var error: Error = SAFE_JSON.write_object(profile_path, {"version": 10, "values": values})
 	status.text = "Profile saved: %s" % ProjectSettings.globalize_path(profile_path) if error == OK else "Profile not saved: %s" % error_string(error)
 	return error == OK
 
 func load_profile() -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(profile_path)
-	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5 and data.get("version") != 6 and data.get("version") != 7 and data.get("version") != 8 and data.get("version") != 9) or not data.get("values") is Dictionary:
+	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5 and data.get("version") != 6 and data.get("version") != 7 and data.get("version") != 8 and data.get("version") != 9 and data.get("version") != 10) or not data.get("values") is Dictionary:
 		status.text = "Invalid or missing profile. Nothing changed."
 		return false
 	var values: Dictionary = data.values
@@ -438,10 +443,12 @@ func load_profile() -> bool:
 		var key: String = field[1] + "." + field[2]
 		apply_setting(key, values.get(key, defaults[key]))
 	sync_controls()
-	status.text = "Legacy values loaded. Loot uses a per-item rarity cascade; new fields use startup defaults. Saved item chances are preserved; reset defaults for CE4 (5% items) and ascent safety stops." if version < 9 else "Profile loaded. Test switches and progress are not part of profiles."
+	status.text = "Legacy values loaded. Loot uses a per-item rarity cascade; new fields use startup defaults. Saved item chances are preserved; reset defaults for CE4 (5% items) and ascent safety stops." if version < 10 else "Profile loaded. Test switches and progress are not part of profiles."
 	return true
 
 func field_version(field: Array) -> int:
+	if field[2].begins_with("tree_kindling_") or field[2].begins_with("tree_emberguard_") or field[2].begins_with("tree_momentum_"):
+		return 10
 	if field[2].begins_with("echo_") or field[2].begins_with("hunter_") or field[2].begins_with("storm_") or field[2].begins_with("phoenix_") or field[2].begins_with("champion_"):
 		return 9
 	if field[2] in ["burst_radius", "burst_damage_ratio", "overcharge_bonus"]:

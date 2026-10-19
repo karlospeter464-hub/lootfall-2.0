@@ -46,7 +46,7 @@ func run() -> void:
 	var dev = game.dev_console
 	var store = game.progress
 	check(game.state == game.State.TOWN and paused and town.screen.visible, "The application starts in town")
-	check(town.node_buttons.size() == 15 and dev.controls.size() == 87, "All 15 talents and 87 balance controls are present")
+	check(town.node_buttons.size() == 15 and dev.controls.size() == 92, "All 15 talents and 92 balance controls are present")
 	key(KEY_I)
 	await process_frame
 	check(not game.inventory_panel.is_open and game.bag_used() == 0, "Town cannot open run equipment")
@@ -99,9 +99,9 @@ func run() -> void:
 	check(not town.showing_tree and paused, "Escape from the tree returns to town without starting a run")
 	town.start_button.pressed.emit()
 	check(game.state == game.State.BETWEEN_WAVES and not paused and not town.screen.visible, "Start Run leaves town and resumes gameplay")
-	check(game.active_talents.size() == 15 and is_equal_approx(game.player.damage, 14 * 1.2), "The new run applies purchased Power exactly once")
-	check(is_equal_approx(game.player.health_limit, 125) and game.player.health == 125, "Vitality increases effective max HP and starts full without changing the base stat")
-	check(game.player.max_health == 100 and is_equal_approx(game.player.cast_interval, 0.36 * 0.86), "Base max HP stays tunable and Flow applies its own interval multiplier")
+	check(game.active_talents.size() == 15 and is_equal_approx(game.player.damage, 14 * 1.16), "The new run applies purchased Power exactly once")
+	check(is_equal_approx(game.player.health_limit, 120) and game.player.health == 120, "Vitality increases effective max HP and starts full without changing the base stat")
+	check(game.player.max_health == 100 and is_equal_approx(game.player.cast_interval, 0.36 * 0.89), "Base max HP stays tunable and Flow applies its own interval multiplier")
 	check(not game.buy_talent("unknown") and not game.refund_talents(), "Talents can only be transacted in town")
 	game.power_upgrades = 1
 	game.quick_upgrades = 1
@@ -109,7 +109,7 @@ func run() -> void:
 	game.equip_item(0)
 	game.accept_item("cinder_codex")
 	game.equip_item(0)
-	check(is_equal_approx(game.player.damage, 14 * 1.2 * 1.35 * 1.3) and game.codex_active, "Tree, wave cards and gear compose through the shared build")
+	check(is_equal_approx(game.player.damage, 14 * 1.16 * 1.35 * 1.3) and game.codex_active, "Tree, wave cards and gear compose through the shared build")
 	game.begin_wave()
 	game.enemy_health = 500
 	game.drop_chance = 0
@@ -159,15 +159,15 @@ func run() -> void:
 		game.enemies.remove_child(enemy)
 		enemy.queue_free()
 	game.complete_wave()
-	check(is_equal_approx(game.player.health, 57.5), "Renewal heals the configured max-health ratio on a real wave completion")
+	check(is_equal_approx(game.player.health, 57.2), "Renewal heals the configured max-health ratio on a real wave completion")
 	game.state = game.State.FIGHTING
 	game.complete_wave()
-	check(is_equal_approx(game.player.health, 57.5), "Completing the same wave again cannot duplicate healing")
+	check(is_equal_approx(game.player.health, 57.2), "Completing the same wave again cannot duplicate healing")
 	game.begin_wave()
-	game.player.health = 124
+	game.player.health = 119
 	game.remaining_to_spawn = 0
 	game.complete_wave()
-	check(game.player.health == 125 and game.state == game.State.UPGRADE and paused, "Renewal clamps to max health and preserves the wave-two card event")
+	check(game.player.health == 120 and game.state == game.State.UPGRADE and paused, "Renewal clamps to max health and preserves the wave-two card event")
 	game.offered_cards.assign([0])
 	game.choose_upgrade(0)
 	game.finish_run(false)

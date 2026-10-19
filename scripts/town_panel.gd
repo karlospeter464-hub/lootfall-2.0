@@ -25,10 +25,17 @@ class Connections extends Control:
 	var buttons: Dictionary
 	var owned: Dictionary
 	func _draw() -> void:
+		for column in 3:
+			var tint := Color(TREE.COLORS[["Power", "Vitality", "Flow"][column]])
+			draw_circle(Vector2(column * 265 + 128, 290), 118, Color(tint, 0.025))
 		for id in TREE.NODES:
 			for parent in TREE.NODES[id].parents:
 				var lit: bool = owned.has(parent) and owned.has(id)
-				draw_line(buttons[parent].position + buttons[parent].size / 2, buttons[id].position + buttons[id].size / 2, Color("bda477") if lit else Color("3a4c60"), 3 if lit else 2, true)
+				var tint := Color(TREE.COLORS[TREE.NODES[id].branch])
+				var from: Vector2 = buttons[parent].position + buttons[parent].size / 2
+				var to: Vector2 = buttons[id].position + buttons[id].size / 2
+				var middle: float = (from.y + to.y) / 2
+				draw_polyline(PackedVector2Array([from, Vector2(from.x, middle), Vector2(to.x, middle), to]), tint if lit else tint.darkened(0.6), 4 if lit else 2, true)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -66,7 +73,7 @@ func _ready() -> void:
 	tree_page.position = Vector2(45, 135)
 	screen.add_child(tree_page)
 	map = Connections.new()
-	map.size = Vector2(790, 500)
+	map.size = Vector2(790, 580)
 	map.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tree_page.add_child(map)
 	for branch in ["Power", "Vitality", "Flow"]:
@@ -76,17 +83,29 @@ func _ready() -> void:
 		var node: Dictionary = TREE.NODES[id]
 		var column: int = ["Power", "Vitality", "Flow"].find(node.branch)
 		var control := Button.new()
-		control.position = Vector2(column * 265 + 8, 45 + (node.tier - 1) * 90)
-		control.size = Vector2(220, 66)
+		var special: bool = node.tier in [1, 5]
+		control.size = Vector2(204, 78) if special else (Vector2(158, 64) if node.tier == 4 else Vector2(86, 74))
+		var offsets := [-10, 20, -18, 12, 0]
+		control.position = Vector2(column * 265 + 128 + offsets[node.tier - 1] * (1 if column != 1 else -1), 84 + (node.tier - 1) * 112) - control.size / 2
 		control.add_theme_font_size_override("font_size", 16)
 		control.pressed.connect(select_node.bind(id))
 		control.focus_entered.connect(select_node.bind(id))
 		map.add_child(control)
 		node_buttons[id] = control
 	map.buttons = node_buttons
+	for column in 3:
+		var prefix: String = ["power", "vitality", "flow"][column]
+		for tier in range(1, 6):
+			var control: Button = node_buttons["%s_%d" % [prefix, tier]]
+			for direction in ["top", "bottom", "left", "right"]:
+				var next_column: int = clampi(column + (-1 if direction == "left" else (1 if direction == "right" else 0)), 0, 2)
+				var next_tier: int = clampi(tier + (-1 if direction == "top" else (1 if direction == "bottom" else 0)), 1, 5)
+				var neighbor: Button = node_buttons["%s_%d" % [["power", "vitality", "flow"][next_column], next_tier]]
+				control.set("focus_neighbor_" + direction, control.get_path_to(neighbor))
+	label(map, "FILLED: awakened    /    GOLD: affordable    /    COLOR: save Echoes    /    DIM: locked", Vector2(0, 578), Vector2(795, 28), 14, Color("aab6c7"))
 	title = label(tree_page, "", Vector2(810, 10), Vector2(360, 80), 26, Color("efd2a2"))
-	detail = label(tree_page, "", Vector2(810, 100), Vector2(345, 170), 18)
-	condition = label(tree_page, "", Vector2(810, 280), Vector2(345, 130), 16)
+	detail = label(tree_page, "", Vector2(810, 90), Vector2(345, 210), 17)
+	condition = label(tree_page, "", Vector2(810, 310), Vector2(345, 105), 15)
 	var actions := VBoxContainer.new()
 	actions.position = Vector2(810, 420)
 	actions.size.x = 345
@@ -143,6 +162,19 @@ func refresh() -> void:
 	wallet.text = "ECHOES  %d     /     BEST WAVE  %d     /     PATHS AWAKENED  %d / 15" % [progress.echoes, progress.best_wave, progress.talents.size()]
 	var bonuses: Dictionary = TREE.bonuses(progress.talents, game)
 	summary.text = "NEXT RUN  /  +%.0f%% damage  /  +%.0f%% health  /  %.0f%% shorter interval" % [bonuses.damage * 100, bonuses.health * 100, minf(0.6, bonuses.interval) * 100]
+	summary.text += "\nPower → First Spark   /   Vitality → Renewal   /   Flow → Second Wind"
+	var affordable: int = 0
+	for id in TREE.NODES:
+		if progress.available and TREE.accessible(id, progress.talents) and progress.echoes >= game.talent_cost(id):
+			affordable += 1
+	skill_button.text = "Awaken the Skill Tree" + ("  /  %d affordable" % affordable if affordable > 0 else "  /  earn Echoes in the trial")
+	if progress.talents.size() == 15:
+		skill_button.text = "Skill Tree  /  all paths awakened"
+	var roots: PackedStringArray = []
+	for id in ["power_1", "vitality_1", "flow_1"]:
+		if progress.talents.has(id):
+			roots.append(TREE.NODES[id].name)
+	summary.text += "\nEntry talents: " + (", ".join(roots) if not roots.is_empty() else "Kindling, Emberguard or Arcane Momentum — 30 Echoes each")
 	start_button.disabled = not progress.available
 	retry_button.visible = not progress.available
 	map.owned = progress.talents
@@ -151,22 +183,45 @@ func refresh() -> void:
 		var node: Dictionary = TREE.NODES[id]
 		var owned: bool = progress.talents.has(id)
 		var reachable: bool = TREE.accessible(id, progress.talents)
-		node_buttons[id].text = node.name + "\n" + ("AWAKENED" if owned else ("%d Echoes" % game.talent_cost(id) if reachable else "LOCKED"))
-		node_buttons[id].tooltip_text = TREE.description(id, game)
+		var can_afford: bool = reachable and progress.available and progress.echoes >= game.talent_cost(id)
+		var state_text: String = "AWAKENED" if owned else ("%d / READY" % game.talent_cost(id) if can_afford else ("%d Echoes" % game.talent_cost(id) if reachable else "LOCKED"))
+		var caption: String = node.name if node.tier in [1, 4, 5] else ["", "", "II", "III"][node.tier]
+		if node.tier in [2, 3]:
+			state_text = "OWNED" if owned else ("%d\nREADY" % game.talent_cost(id) if can_afford else ("%d Echoes" % game.talent_cost(id) if reachable else "LOCKED"))
+		node_buttons[id].text = caption + "\n" + state_text
+		node_buttons[id].add_theme_font_size_override("font_size", 13 if node.tier in [2, 3] else 16)
+		node_buttons[id].tooltip_text = node.name + "\n" + TREE.description(id, game)
 		var style := StyleBoxFlat.new()
-		style.bg_color = Color("293a43") if owned else Color("1c2939")
-		style.border_color = Color("f3d599") if selected == id else (Color(TREE.COLORS[node.branch]) if owned or reachable else Color("425064"))
-		style.set_border_width_all(3 if selected == id else 1)
-		style.set_corner_radius_all(10 if node.tier < 5 else 24)
+		style.bg_color = Color(TREE.COLORS[node.branch]).darkened(0.66) if owned else Color("172332")
+		style.border_color = Color("f3d599") if can_afford else (Color(TREE.COLORS[node.branch]) if owned or reachable else Color("354052"))
+		style.set_border_width_all(3 if owned or can_afford else 2)
+		style.set_corner_radius_all(38 if node.tier in [2, 3] else (8 if node.tier == 4 else 27))
+		style.set_content_margin_all(2)
 		node_buttons[id].add_theme_stylebox_override("normal", style)
+		var hover: StyleBoxFlat = style.duplicate()
+		hover.bg_color = style.bg_color.lightened(0.15)
+		node_buttons[id].add_theme_stylebox_override("hover", hover)
+		node_buttons[id].add_theme_stylebox_override("pressed", hover)
+		var focus: StyleBoxFlat = style.duplicate()
+		focus.bg_color = Color.TRANSPARENT
+		focus.border_color = Color("fff0d0")
+		focus.set_border_width_all(2)
+		focus.expand_margin_left = 4
+		focus.expand_margin_right = 4
+		focus.expand_margin_top = 4
+		focus.expand_margin_bottom = 4
+		node_buttons[id].add_theme_stylebox_override("focus", focus)
+		node_buttons[id].add_theme_color_override("font_color", Color("f4e5cf") if owned or reachable else Color("7f8da1"))
 	var node: Dictionary = TREE.NODES[selected]
 	title.text = node.name
-	detail.text = TREE.description(selected, game) + "\n\nPermanent. Applies from your next run."
+	detail.text = TREE.description(selected, game) + "\n\nApplies from the next run."
 	var parents: Array[String] = []
 	for parent in node.parents:
 		parents.append(TREE.NODES[parent].name)
 	condition.text = "Connect from: " + ("Town — no prerequisite" if parents.is_empty() else " OR ".join(parents))
-	condition.text += "\n\n" + ("Owned. Paid %d Echoes." % progress.talents[selected] if progress.talents.has(selected) else "Cost: %d Echoes. All 15 nodes can be active together." % game.talent_cost(selected))
+	condition.text += "\n" + ("Owned. Paid %d Echoes." % progress.talents[selected] if progress.talents.has(selected) else "Cost: %d Echoes." % game.talent_cost(selected))
+	if not progress.talents.has(selected):
+		condition.text += "\n" + ("Locked — connect a prerequisite." if not TREE.accessible(selected, progress.talents) else ("Ready to awaken." if progress.echoes >= game.talent_cost(selected) else "Need %d more Echoes." % (game.talent_cost(selected) - progress.echoes)))
 	buy_button.text = "Awaken  /  %d Echoes" % game.talent_cost(selected)
 	buy_button.disabled = not progress.available or not TREE.accessible(selected, progress.talents) or progress.echoes < game.talent_cost(selected)
 	reset_button.text = "Reset all  /  Refund %d Echoes" % progress.invested()

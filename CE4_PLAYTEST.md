@@ -1,3 +1,5 @@
+> Current tree/root and F1 reference: CE5_PLAYTEST.md (92 fields, profile v10). This guide retains CE4 package verification.
+
 # CE4 — Item Discovery & Synergy Expansion
 
 Local CE3/follow-up remains the base. The player's discovery of **Fire Fan + Piercing Flame + Overcharge** motivates this expansion. Eight fixed items share the existing Scepter/Book slots and eight-field bag. Cards, Seers, Echoes, talent ownership and save progression are unchanged.
