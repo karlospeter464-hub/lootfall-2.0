@@ -15,10 +15,10 @@ func capture() -> void:
 	game.set_process(false)
 	game.player.controls_enabled = false
 	game.rng.seed = 42
-	var art_view: bool = OS.get_cmdline_user_args().has("--view=art_mage") or OS.get_cmdline_user_args().has("--view=art_before")
+	var art_view: bool = OS.get_cmdline_user_args().has("--view=art_mage") or OS.get_cmdline_user_args().has("--view=art_before") or OS.get_cmdline_user_args().has("--view=enemy_revision")
 	var feedback_view: bool = OS.get_cmdline_user_args().has("--view=ce1_feedback") or art_view
 	if art_view:
-		game.player.use_artwork = not OS.get_cmdline_user_args().has("--view=art_before")
+		game.player.use_artwork = OS.get_cmdline_user_args().has("--view=art_mage")
 		game.player.update_artwork(0)
 	if feedback_view or OS.get_cmdline_user_args().has("--view=ce1") or OS.get_cmdline_user_args().has("--view=ce1_tools"):
 		game.wave = 2
@@ -41,6 +41,8 @@ func capture() -> void:
 			enemy.queue_redraw()
 		if feedback_view and enemy.get_script() == game.GUARDIAN_ENEMY:
 			enemy.take_projectile_hit(14)
+			if OS.get_cmdline_user_args().has("--view=enemy_revision"):
+				enemy.flash = 0
 		if feedback_view and index == 7 and enemy.get_script() == game.RANGED_ENEMY:
 			enemy.charging = false
 			enemy.concentration_hits = 0

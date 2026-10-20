@@ -91,24 +91,46 @@ func _draw() -> void:
 	elif charge_state == Charge.RECOVERY and not dead:
 		draw_string(ThemeDB.fallback_font, Vector2(-38, -54), "RECOVERY", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("baf7ff"))
 	if armor > 0 and minimum_ratio < 1:
-		var shield := PackedVector2Array([Vector2(-29, -25), Vector2(29, -25), Vector2(31, 18), Vector2(0, 34), Vector2(-31, 18), Vector2(-29, -25)])
-		draw_polyline(shield, Color("c0f1ff") if flash > 0 else Color("6398b6"), 4 if flash > 0 else 1.5, true)
+		var shield_color := Color("c0f1ff") if flash > 0 else Color("6398b6")
+		for side in [-1, 1]:
+			draw_arc(Vector2.ZERO, 34, side * PI / 2 - 0.55, side * PI / 2 + 0.55, 10, shield_color, 3 if flash > 0 else 1.3, true)
 
 func draw_body() -> void:
-	var moving: float = minf(velocity.length() / move_speed, 1.0) if charge_state == Charge.WALKING else 0.0
-	var stomp: float = absf(sin(visual_clock * 7)) * moving
+	var moving: float = minf(velocity.length() / maxf(move_speed, 1), 1.0) if charge_state == Charge.WALKING else 0.0
+	var stomp: float = sin(visual_clock * 7) * moving
 	var lean: float = charge_direction.x * 0.14 if charge_state == Charge.RUSHING else 0.0
-	draw_set_transform(Vector2(0, -stomp), lean)
-	var stone := Color("789d9c") if flash <= 0 else Color("fff1cc")
-	draw_colored_polygon(PackedVector2Array([Vector2(-28, -24), Vector2(-14, -29), Vector2(0, -21), Vector2(14, -29), Vector2(28, -24), Vector2(30, 12), Vector2(16, 25), Vector2(-16, 25), Vector2(-30, 12)]), Color("101421"))
-	draw_colored_polygon(PackedVector2Array([Vector2(-24, -21), Vector2(-14, -24), Vector2(-7, -16), Vector2(-13, 9), Vector2(-25, 6)]), stone)
-	draw_colored_polygon(PackedVector2Array([Vector2(24, -21), Vector2(14, -24), Vector2(7, -16), Vector2(13, 9), Vector2(25, 6)]), stone.darkened(0.25))
-	draw_colored_polygon(PackedVector2Array([Vector2(-10, -14), Vector2(10, -14), Vector2(14, 12), Vector2(0, 23), Vector2(-14, 12)]), Color("344a56"))
-	draw_rect(Rect2(-10, -28, 20, 13), Color("101421"))
-	draw_line(Vector2(-6, -22), Vector2(6, -22), Color("e4d0a4"), 3)
-	draw_polyline(PackedVector2Array([Vector2(0, -9), Vector2(8, 3), Vector2(0, 13), Vector2(-8, 3), Vector2(0, -9)]), Color("b6e3dc") if charge_state != Charge.RUSHING else Color("ffb875"), 3, true)
-	draw_line(Vector2(-13, 14), Vector2(-16, 24 + stomp * 2), stone, 7)
-	draw_line(Vector2(13, 14), Vector2(16, 24 - stomp * 2), stone.darkened(0.2), 7)
+	draw_set_transform(Vector2(0, -absf(stomp)), lean)
+	var champion: bool = not boss_name.is_empty()
+	var steel := Color("9eabaf") if not champion else Color("aa8a68")
+	if flash > 0:
+		steel = Color("fff1cc")
+	var trim := Color("9ad7d5") if not champion else Color("efc587")
+	var ink := Color("101421")
+	# An articulated knight replaces the single box: helmet, shoulders, waist and boots.
+	for side in [-1, 1]:
+		var step: float = stomp * side * 2
+		draw_colored_polygon(PackedVector2Array([Vector2(side * 3, 10), Vector2(side * 16, 10), Vector2(side * 18, 24 + step), Vector2(side * 3, 24 + step)]), ink)
+		draw_line(Vector2(side * 10, 12), Vector2(side * 11, 20 + step), steel.darkened(0.3), 7)
+		draw_line(Vector2(side * 5, 23 + step), Vector2(side * 17, 23 + step), steel, 4)
+	draw_colored_polygon(PackedVector2Array([Vector2(-14, -17), Vector2(14, -17), Vector2(16, 0), Vector2(10, 14), Vector2(-10, 14), Vector2(-16, 0)]), ink)
+	draw_colored_polygon(PackedVector2Array([Vector2(-10, -14), Vector2(10, -14), Vector2(12, -1), Vector2(7, 9), Vector2(-7, 9), Vector2(-12, -1)]), steel.darkened(0.25))
+	draw_colored_polygon(PackedVector2Array([Vector2(-9, 10), Vector2(9, 10), Vector2(6, 23), Vector2(0, 18), Vector2(-6, 23)]), Color("4a3b52"))
+	draw_line(Vector2(-11, 8), Vector2(11, 8), trim.darkened(0.25), 3)
+	for side in [-1, 1]:
+		draw_line(Vector2(side * 20, -7), Vector2(side * 23, 11), ink, 11)
+		draw_line(Vector2(side * 20, -6), Vector2(side * 23, 10), steel.darkened(0.2), 6)
+		draw_colored_polygon(PackedVector2Array([Vector2(side * 11, -18), Vector2(side * 22, -25), Vector2(side * 30, -16), Vector2(side * 27, -7), Vector2(side * 14, -8)]), ink)
+		draw_colored_polygon(PackedVector2Array([Vector2(side * 14, -17), Vector2(side * 22, -21), Vector2(side * 26, -15), Vector2(side * 24, -10), Vector2(side * 16, -11)]), steel)
+		draw_line(Vector2(side * 15, -17), Vector2(side * 22, -21), trim, 2)
+		if champion:
+			draw_colored_polygon(PackedVector2Array([Vector2(side * 22, -23), Vector2(side * 30, -30), Vector2(side * 28, -16)]), trim.darkened(0.25))
+	draw_colored_polygon(PackedVector2Array([Vector2(-10, -27), Vector2(0, -32), Vector2(10, -27), Vector2(9, -15), Vector2(0, -10), Vector2(-9, -15)]), ink)
+	draw_colored_polygon(PackedVector2Array([Vector2(-7, -25), Vector2(0, -28), Vector2(7, -25), Vector2(6, -17), Vector2(0, -14), Vector2(-6, -17)]), steel)
+	draw_line(Vector2(-6, -22), Vector2(6, -22), ink, 4)
+	draw_line(Vector2(-4, -22), Vector2(4, -22), trim, 1.5)
+	draw_line(Vector2(0, -20), Vector2(0, -15), steel.darkened(0.45), 2)
+	draw_colored_polygon(PackedVector2Array([Vector2(-8, -10), Vector2(0, -5), Vector2(8, -10), Vector2(6, 1), Vector2(0, 5), Vector2(-6, 1)]), ink)
+	draw_polyline(PackedVector2Array([Vector2(0, -7), Vector2(4, -2), Vector2(0, 3), Vector2(-4, -2), Vector2(0, -7)]), trim if charge_state != Charge.RUSHING else Color("ffb875"), 2, true)
 	if charge_state == Charge.RUSHING:
 		for index in 3:
 			var start: Vector2 = -charge_direction * (28 + index * 8) + charge_direction.orthogonal() * (index - 1) * 12

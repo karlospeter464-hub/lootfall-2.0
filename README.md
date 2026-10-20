@@ -196,3 +196,5 @@ Verification: all 14 suites, **930 checks / zero failures** on Godot 4.7.2. Incl
 Run the added suite with the same isolated APPDATA setup as above:
 `& $godotExe --headless --path . --script res://tests/visual_lift_test.gd -- --test-mode`
 Capture `--view=visual_lift_burst` verifies a real projectile kill before saving; other existing preview views still work. Comparison images and the development report live in the separate chronicle.
+
+Visual Lift feedback revision (2026-10-20): Chaser now uses a horned mask and separated clawed limbs; Guardian/Champion use articulated plate armor, helmet, shoulder plates and boots. Champion has bronze/gold accents and shoulder spikes. Shield feedback uses two short protective arcs instead of a body-sized polygon. Mage, Seer and gameplay are unchanged. Four affected suites rerun: 370 checks, zero failures. Two native previews inspected; use --view=enemy_revision for the controlled group with Guardian hit flash cleared to show its base armor colors.
