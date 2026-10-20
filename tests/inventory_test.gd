@@ -147,7 +147,7 @@ func run() -> void:
 	panel.open_inventory()
 	check(not panel.is_open, "Equipment cannot reopen over the result screen")
 	var saved: Dictionary = SAFE_JSON.read_object(game.progress.path)
-	check(saved.size() == 4 and saved.version == 2 and not saved.has("equipment"), "The new progress format saves talents without persisting equipment")
+	check(saved.size() == 6 and saved.version == 3 and saved.has("world") and not saved.has("equipment"), "Progress v3 saves talents and world without persisting equipment")
 	game.restart_run()
 	check(game.bag_used() == 0 and game.equipment.book == "" and game.equipment.scepter == "" and game.loot.get_child_count() == 0 and not game.codex_spawned, "Restart clears bag, gear, ground loot and natural Codex eligibility")
 	check(game.progress.echoes == 30 and game.player.damage == base and not paused, "Restart keeps Echoes and restores the base build")

@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const WORLD = preload("res://scripts/world_regions.gd")
+const WORLD_ART = preload("res://scripts/world_art.gd")
 const TREE = preload("res://scripts/skill_tree.gd")
 var game
 var screen: Control
@@ -19,7 +21,31 @@ var retry_button: Button
 var node_buttons: Dictionary = {}
 var selected: String = "power_1"
 var showing_tree: bool = false
+var tree_scroll: ScrollContainer
+var region_cards: Array[RegionCard] = []
+var sandbox_button: Button
+var sandbox_tools: HBoxContainer
 var map: Connections
+
+class RegionCard extends Control:
+	var region: int = 0
+	var world: Dictionary
+	func _draw() -> void:
+		if world.is_empty():
+			return
+		var unlocked: bool = region <= WORLD.frontier(world)
+		draw_set_transform(Vector2(0, 27), 0, Vector2(0.29, 0.13))
+		WORLD_ART.floor_scene(self, region, WORLD.fraction(world, region) if unlocked else 0)
+		draw_set_transform(Vector2.ZERO)
+		if not unlocked:
+			draw_rect(Rect2(0, 27, 371, 104), Color(0.03, 0.04, 0.07, 0.75))
+		draw_string(ThemeDB.fallback_font, Vector2(10, 19), "%d  /  %s" % [region + 1, WORLD.REGIONS[region].name], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("efd2a2"))
+		var text: String = "LOCKED — restore the previous region"
+		if unlocked:
+			text = "%s  /  %.0f%%  /  Best Wave %d" % ["RESTORED" if WORLD.fraction(world, region) == 1 else "FRONTIER", WORLD.fraction(world, region) * 100, world.best[region]]
+		draw_string(ThemeDB.fallback_font, Vector2(10, 151), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("c5d5ce"))
+		draw_rect(Rect2(10, 163, 350, 4), Color("263342"))
+		draw_rect(Rect2(10, 163, 350 * WORLD.fraction(world, region), 4), Color("92c6a1"))
 
 class Connections extends Control:
 	var buttons: Dictionary
@@ -50,32 +76,53 @@ func _ready() -> void:
 	label(screen, "L O O T F A L L  /  EMBERHAVEN", Vector2(55, 30), Vector2(950, 40), 30, Color("efd2a2"))
 	wallet = label(screen, "", Vector2(55, 80), Vector2(1160, 32), 18)
 	city = VBoxContainer.new()
-	city.position = Vector2(240, 190)
-	city.size = Vector2(800, 440)
-	city.add_theme_constant_override("separation", 24)
+	city.position = Vector2(55, 135)
+	city.size = Vector2(1160, 560)
+	city.add_theme_constant_override("separation", 10)
 	screen.add_child(city)
 	var welcome := Label.new()
-	welcome.text = "A MOMENT BY THE EMBERS"
-	welcome.add_theme_font_size_override("font_size", 29)
+	welcome.text = "EVERY RUN BRINGS THE WORLD BACK TO LIFE"
+	welcome.add_theme_font_size_override("font_size", 26)
 	welcome.add_theme_color_override("font_color", Color("efd2a2"))
 	city.add_child(welcome)
 	var hint := Label.new()
 	hint.text = "Return from the trial. Invest in what comes next.\nYour cards and equipment belong to each run.\nEchoes and the paths you awaken endure."
 	hint.add_theme_font_size_override("font_size", 20)
 	city.add_child(hint)
+	hint.hide()
 	summary = Label.new()
 	summary.add_theme_font_size_override("font_size", 18)
 	city.add_child(summary)
+	var regions := HBoxContainer.new()
+	regions.add_theme_constant_override("separation", 15)
+	city.add_child(regions)
+	for index in 3:
+		var card := RegionCard.new()
+		card.region = index
+		card.clip_contents = true
+		card.custom_minimum_size = Vector2(371, 175)
+		regions.add_child(card)
+		region_cards.append(card)
+	sandbox_button = button(city, "", game.enter_world_sandbox)
+	sandbox_button.visible = OS.is_debug_build()
+	sandbox_tools = HBoxContainer.new()
+	city.add_child(sandbox_tools)
+	for stage in [0, 1, 2, 3]:
+		button(sandbox_tools, "%d%% preview" % (stage * 25), game.sandbox_preview.bind(stage))
+	button(sandbox_tools, "Heal + overflow / +3000 test Echoes", game.sandbox_complete)
 	skill_button = button(city, "Awaken the Skill Tree", show_tree)
 	start_button = button(city, "Start Run", game.restart_run)
 	retry_button = button(city, "Retry loading progress", func(): game.progress.load_progress(); refresh())
 	tree_page = Control.new()
 	tree_page.position = Vector2(45, 135)
 	screen.add_child(tree_page)
+	tree_scroll = ScrollContainer.new()
+	tree_scroll.size = Vector2(795, 580)
+	tree_page.add_child(tree_scroll)
 	map = Connections.new()
-	map.size = Vector2(790, 580)
+	map.custom_minimum_size = Vector2(790, 1780)
 	map.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tree_page.add_child(map)
+	tree_scroll.add_child(map)
 	for branch in ["Power", "Vitality", "Flow"]:
 		var column: int = ["Power", "Vitality", "Flow"].find(branch)
 		label(map, branch.to_upper(), Vector2(column * 265 + 10, 0), Vector2(240, 30), 19, Color(TREE.COLORS[branch]))
@@ -83,10 +130,10 @@ func _ready() -> void:
 		var node: Dictionary = TREE.NODES[id]
 		var column: int = ["Power", "Vitality", "Flow"].find(node.branch)
 		var control := Button.new()
-		var special: bool = node.tier in [1, 5]
+		var special: bool = node.tier in [1, 5] or node.get("special", false)
 		control.size = Vector2(204, 78) if special else (Vector2(158, 64) if node.tier == 4 else Vector2(86, 74))
 		var offsets := [-10, 20, -18, 12, 0]
-		control.position = Vector2(column * 265 + 128 + offsets[node.tier - 1] * (1 if column != 1 else -1), 84 + (node.tier - 1) * 112) - control.size / 2
+		control.position = Vector2(column * 265 + 128 + offsets[(node.tier - 1) % 5] * (1 if column != 1 else -1), 84 + (node.tier - 1) * 112) - control.size / 2
 		control.add_theme_font_size_override("font_size", 16)
 		control.pressed.connect(select_node.bind(id))
 		control.focus_entered.connect(select_node.bind(id))
@@ -95,14 +142,14 @@ func _ready() -> void:
 	map.buttons = node_buttons
 	for column in 3:
 		var prefix: String = ["power", "vitality", "flow"][column]
-		for tier in range(1, 6):
+		for tier in range(1, 16):
 			var control: Button = node_buttons["%s_%d" % [prefix, tier]]
 			for direction in ["top", "bottom", "left", "right"]:
 				var next_column: int = clampi(column + (-1 if direction == "left" else (1 if direction == "right" else 0)), 0, 2)
-				var next_tier: int = clampi(tier + (-1 if direction == "top" else (1 if direction == "bottom" else 0)), 1, 5)
+				var next_tier: int = clampi(tier + (-1 if direction == "top" else (1 if direction == "bottom" else 0)), 1, 15)
 				var neighbor: Button = node_buttons["%s_%d" % [["power", "vitality", "flow"][next_column], next_tier]]
 				control.set("focus_neighbor_" + direction, control.get_path_to(neighbor))
-	label(map, "FILLED: awakened    /    GOLD: affordable    /    COLOR: save Echoes    /    DIM: locked", Vector2(0, 578), Vector2(795, 28), 14, Color("aab6c7"))
+	label(map, "FILLED: awakened    /    GOLD: affordable    /    COLOR: save Echoes    /    DIM: locked", Vector2(0, 1750), Vector2(795, 28), 14, Color("aab6c7"))
 	title = label(tree_page, "", Vector2(810, 10), Vector2(360, 80), 26, Color("efd2a2"))
 	detail = label(tree_page, "", Vector2(810, 90), Vector2(345, 210), 17)
 	condition = label(tree_page, "", Vector2(810, 310), Vector2(345, 105), 15)
@@ -156,10 +203,17 @@ func restore_focus() -> void:
 func select_node(id: String) -> void:
 	selected = id
 	refresh()
+	tree_scroll.ensure_control_visible.call_deferred(node_buttons[id])
 
 func refresh() -> void:
 	var progress = game.progress
-	wallet.text = "ECHOES  %d     /     BEST WAVE  %d     /     PATHS AWAKENED  %d / 15" % [progress.echoes, progress.best_wave, progress.talents.size()]
+	wallet.text = "%sECHOES %d  /  TALENTS %d / 45  /  HIGHEST UNLOCKED REGION %d  /  REGIONS RESTORED %d" % ["SANDBOX — " if game.sandbox else "", progress.echoes, progress.talents.size(), mini(3, WORLD.restored(progress.world) + 1), WORLD.restored(progress.world)]
+	for card in region_cards:
+		card.world = progress.world
+		card.queue_redraw()
+	sandbox_button.text = "Leave sandbox — return to normal save" if game.sandbox else "Restoration sandbox — separate test save"
+	sandbox_tools.visible = game.sandbox
+	start_button.text = "Explore " + WORLD.REGIONS[WORLD.frontier(progress.world)].name + "  /  local Wave 1"
 	var bonuses: Dictionary = TREE.bonuses(progress.talents, game)
 	summary.text = "NEXT RUN  /  +%.0f%% damage  /  +%.0f%% health  /  %.0f%% shorter interval" % [bonuses.damage * 100, bonuses.health * 100, minf(0.6, bonuses.interval) * 100]
 	summary.text += "\nPower → First Spark   /   Vitality → Renewal   /   Flow → Second Wind"
@@ -168,7 +222,7 @@ func refresh() -> void:
 		if progress.available and TREE.accessible(id, progress.talents) and progress.echoes >= game.talent_cost(id):
 			affordable += 1
 	skill_button.text = "Awaken the Skill Tree" + ("  /  %d affordable" % affordable if affordable > 0 else "  /  earn Echoes in the trial")
-	if progress.talents.size() == 15:
+	if progress.talents.size() == TREE.NODES.size():
 		skill_button.text = "Skill Tree  /  all paths awakened"
 	var roots: PackedStringArray = []
 	for id in ["power_1", "vitality_1", "flow_1"]:
@@ -185,7 +239,9 @@ func refresh() -> void:
 		var reachable: bool = TREE.accessible(id, progress.talents)
 		var can_afford: bool = reachable and progress.available and progress.echoes >= game.talent_cost(id)
 		var state_text: String = "AWAKENED" if owned else ("%d / READY" % game.talent_cost(id) if can_afford else ("%d Echoes" % game.talent_cost(id) if reachable else "LOCKED"))
-		var caption: String = node.name if node.tier in [1, 4, 5] else ["", "", "II", "III"][node.tier]
+		var caption: String = node.name if node.tier not in [2, 3] else ["", "", "II", "III"][node.tier]
+		if node.tier > 5 and not node.get("special", false):
+			caption = str(node.tier)
 		if node.tier in [2, 3]:
 			state_text = "OWNED" if owned else ("%d\nREADY" % game.talent_cost(id) if can_afford else ("%d Echoes" % game.talent_cost(id) if reachable else "LOCKED"))
 		node_buttons[id].text = caption + "\n" + state_text

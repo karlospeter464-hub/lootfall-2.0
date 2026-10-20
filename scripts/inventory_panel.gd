@@ -262,10 +262,10 @@ func item_effect(id: String) -> String:
 		"swift_scepter": return "Swift Scepter (%.0f%% shorter interval)" % (game.scepter_cast_reduction * 100)
 		"focus_grimoire": return "Focus Grimoire (+%.0f%% gear damage)" % (game.focus_damage_bonus * 100)
 		"cinder_codex": return "Cinder Codex (impact splash, %.0f radius)" % game.explosion_radius
-		"echo_scepter": return "Echo Scepter (every 4th attack: one delayed %.0f%% normal shot)" % (game.echo_damage_ratio * 100)
+		"echo_scepter": return "Echo Scepter (every 4th attack: one delayed %.0f%% normal shot)" % (game.echo_damage_ratio * (1.3 if game.active_talents.has("flow_10") else 1.0) * 100)
 		"hunter_scepter": return "Hunter's Scepter (conditional +%.0f%% per additional target hit, cap %.0f%%)" % [game.hunter_step * 100, game.hunter_cap * 100]
-		"storm_grimoire": return "Storm Grimoire (first direct hit: %.0f%% lightning / %.0f range)" % [game.storm_damage_ratio * 100, game.storm_radius]
-		"phoenix_grimoire": return "Phoenix Grimoire (10 direct hits: %.0f%% max-HP heal / %.1f s cooldown)" % [game.phoenix_heal_ratio * 100, game.phoenix_cooldown]
+		"storm_grimoire": return "Storm Grimoire (first direct hit: %.0f%% lightning / %.0f range)" % [game.storm_damage_ratio * (1.25 if game.active_talents.has("flow_12") else 1.0) * 100, game.storm_radius * (1.4 if game.active_talents.has("flow_12") else 1.0)]
+		"phoenix_grimoire": return "Phoenix Grimoire (10 direct hits: %.2f%% max-HP heal / %.1f s cooldown)" % [game.phoenix_heal_ratio * game.TALENTS.bonuses(game.active_talents, game).heal_multiplier * 100, game.phoenix_cooldown]
 	return "none"
 
 func refresh_build() -> void:
@@ -299,13 +299,18 @@ func refresh_build() -> void:
 	if game.active_talents.has("flow_5") and game.player.haste_remaining <= 0:
 		effect_stats.text += "\nSecond Wind: available on health loss; currently inactive"
 	if game.active_talents.has("vitality_5"):
-		effect_stats.text += "\nRenewal: heals %.0f%% max HP on wave clear" % (game.tree_wave_heal * 100)
+		effect_stats.text += "\nRenewal: heals %.1f%% max HP on wave clear" % (game.tree_wave_heal * game.TALENTS.bonuses(game.active_talents, game).heal_multiplier * 100)
 	if game.active_talents.has("power_1"):
 		effect_stats.text += "\nKindling: " + ("READY %.1f s — next central shot" % game.player.kindling_remaining if game.player.kindling_remaining > 0 else "a kill arms the next central shot")
 	if game.active_talents.has("vitality_1"):
 		effect_stats.text += "\nEmberguard: " + ("used this wave" if game.emberguard_used else "ready for first nonlethal enemy hit")
 	if game.active_talents.has("flow_1"):
 		effect_stats.text += "\nMomentum: %d/4 hits; speed %.0f%s" % [game.player.momentum_hits, game.player.effective_move_speed(), " (%.1f s left)" % game.player.momentum_remaining if game.player.momentum_remaining > 0 else ""]
+	for id in game.active_talents:
+		if game.TALENTS.NODES[id].get("special", false):
+			effect_stats.text += "\n" + game.TALENTS.NODES[id].name + ": " + game.TALENTS.description(id, game)
+	if game.player.last_light:
+		effect_stats.text += "\nLast Light: " + ("used this run" if game.player.last_light_used else "ready")
 	effect_stats.text += "\nPermanent talents: %d in this run's snapshot" % game.active_talents.size()
 
 func equip_selected() -> void:

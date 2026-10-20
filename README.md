@@ -2,6 +2,14 @@
 
 Open `project.godot` in Godot 4.7 and press **F5**. Main scene: `scenes/arena.tscn`. Game UI and code are English.
 
+## World Restoration — current playable version
+
+**Every run makes you stronger. Every run brings the world back to life.** Three frontiers, persistent non-spendable Restoration, per-region wave records and a 45-node permanent skill tree now form the expedition loop. Existing Echoes, purchases and run builds are preserved. Open Godot and press F5; use the town's clearly marked **Restoration sandbox** for isolated fast previews, overflow demonstrations and test Echoes.
+
+See [WORLD_RESTORATION_PLAYTEST.md](WORLD_RESTORATION_PLAYTEST.md) for the quick test, exact Restoration rules, all new talent effects, save v3 compatibility, architecture and remaining limits. **1055 checks in 15 suites passed**, plus the 95-check new suite in native D3D12; eleven real screenshots archived in the separate chronicle. Existing Windows v0.1 ZIP remains older. No push.
+
+Earlier sections below describe the original milestones; the current default player is procedural, Use Artwork optionally enables the preserved illustration, the tree has 45 nodes and saves use v3.
+
 ## Art Vertical Slice 01 — first anime mage
 
 The existing player now uses the owner's red-cloaked, white-haired illustration as a Sprite2D, with true alpha, linear mipmaps, a foot pivot and subtle breathing/cast/hurt feedback. Open in Godot and press **F5**. Disable **Player → Use Artwork** before running to restore the old body. Visual size/pivot live on the Artwork child; gameplay, collision and projectile origins remain unchanged. See [asset notes](assets/art/characters/apprentice/README.md) for source/hash, scale and perspective limits. The single frontal pose stays upright and is a prototype, not a final top-down animation set.
@@ -123,7 +131,7 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 
 For parallel suites use a different APPDATA subdirectory per process to avoid MCP registry file contention. The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 64 arena + 54 loot/console + 50 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish + 65 item synergy + 63 early progression + 20 player art + 12 visual lift = **930 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six CE5 gameplay/UI scripts passed Godot MCP `script_check`; four native CE5 town/tree previews were inspected. See CE5_PLAYTEST.md for current root and layout coverage. These are automated checks, not human balance acceptance.
+Visual Lift verification before World Restoration: 64 arena + 54 loot/console + 50 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish + 65 item synergy + 63 early progression + 20 player art + 12 visual lift = **930 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six CE5 gameplay/UI scripts passed Godot MCP `script_check`; four native CE5 town/tree previews were inspected. See CE5_PLAYTEST.md for current root and layout coverage. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 

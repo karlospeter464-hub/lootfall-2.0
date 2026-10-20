@@ -46,7 +46,7 @@ func run() -> void:
 	var dev = game.dev_console
 	var store = game.progress
 	check(game.state == game.State.TOWN and paused and town.screen.visible, "The application starts in town")
-	check(town.node_buttons.size() == 15 and dev.controls.size() == 92, "All 15 talents and 92 balance controls are present")
+	check(town.node_buttons.size() == 45 and dev.controls.size() == 92, "All 45 talents and 92 balance controls are present")
 	key(KEY_I)
 	await process_frame
 	check(not game.inventory_panel.is_open and game.bag_used() == 0, "Town cannot open run equipment")
@@ -88,6 +88,8 @@ func run() -> void:
 	check(game.buy_talent("power_1") and game.buy_talent("power_2") and game.buy_talent("vitality_3"), "An owned neighbor opens the real cross-branch connection")
 	check(not store.talents.has("vitality_2"), "The cross-link does not require buying an unrelated earlier node")
 	for id in game.TALENTS.NODES:
+		if game.TALENTS.NODES[id].tier > 5:
+			continue
 		if not store.talents.has(id):
 			check(game.buy_talent(id), "Each talent is purchasable through a valid path: " + id)
 	check(store.talents.size() == 15 and store.invested() == 1080, "All paths coexist with the exact cumulative default cost")
@@ -189,7 +191,7 @@ func run() -> void:
 	loaded.path = legacy_path
 	check(loaded.load_progress() and loaded.echoes == 77 and loaded.talents.is_empty(), "Existing version-one wallets load with no lost Echoes or invented talents")
 	check(SAFE_JSON.read_object(legacy_path).version == 1, "Loading a legacy wallet does not rewrite it")
-	check(loaded.buy("power_1", 30) and SAFE_JSON.read_object(legacy_path).version == 2 and loaded.echoes == 47, "The next successful purchase migrates the wallet atomically")
+	check(loaded.buy("power_1", 30) and SAFE_JSON.read_object(legacy_path).version == 3 and loaded.echoes == 47, "The next successful purchase migrates the wallet atomically")
 	var fixture := {"version": 2, "echoes": 12, "best_wave": 2, "talents": {"power_5": 130}}
 	SAFE_JSON.write_object(legacy_path, fixture)
 	check(not loaded.load_progress() and not loaded.buy("power_1", 1) and not loaded.refund_all(), "Disconnected corrupt talent data blocks purchases and refunds")

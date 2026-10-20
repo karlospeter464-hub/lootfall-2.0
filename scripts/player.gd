@@ -20,6 +20,11 @@ var visual_clock: float = 0.0
 var cast_flash: float = 0.0
 var artwork_base_scale: Vector2 = Vector2.ONE
 
+var momentum_haste: float = 0.0
+var extra_protection: float = 0.0
+var damage_reduction: float = 0.0
+var last_light: bool = false
+var last_light_used: bool = false
 var health: float
 var health_limit: float
 var hurt_haste_ratio: float = 0.0
@@ -51,6 +56,7 @@ func _ready() -> void:
 	reset_run()
 
 func reset_run() -> void:
+	last_light_used = false
 	health = max_health
 	health_limit = max_health
 	haste_remaining = 0.0
@@ -93,7 +99,7 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func effective_interval() -> float:
-	return interval_with_haste(cast_interval)
+	return interval_with_haste(cast_interval * (1.0 - momentum_haste if momentum_remaining > 0 else 1.0))
 
 func effective_move_speed() -> float:
 	return move_speed * (1.0 + momentum_bonus if momentum_remaining > 0 else 1.0)
@@ -133,10 +139,15 @@ func record_direct_hit() -> void:
 func take_damage(amount: float) -> void:
 	if amount <= 0.0 or protection > 0.0 or health <= 0.0 or (OS.is_debug_build() and invulnerable):
 		return
+	amount *= 1.0 - damage_reduction
+	if amount >= health and last_light and not last_light_used:
+		last_light_used = true
+		amount = maxf(0.0, health - 1.0)
+		protection = 2.0
 	health = maxf(0.0, health - amount)
 	if hurt_haste_ratio > 0 and health > 0:
 		haste_remaining = hurt_haste_duration
-	protection = hit_protection
+	protection = maxf(protection, hit_protection + extra_protection)
 	health_changed.emit(health, health_limit)
 	if health <= 0.0:
 		defeated.emit()

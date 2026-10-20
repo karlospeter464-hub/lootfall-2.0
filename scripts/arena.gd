@@ -11,6 +11,8 @@ const CATALOG = preload("res://scripts/item_catalog.gd")
 const INVENTORY_PANEL = preload("res://scripts/inventory_panel.gd")
 const TALENTS = preload("res://scripts/skill_tree.gd")
 const TOWN_PANEL = preload("res://scripts/town_panel.gd")
+const WORLD = preload("res://scripts/world_regions.gd")
+const WORLD_ART = preload("res://scripts/world_art.gd")
 const BOUNDS := Rect2(64, 128, 1152, 592)
 const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan", "Ember Burst", "Piercing Flame", "Overcharge"]
 
@@ -104,6 +106,16 @@ enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTR
 @export_range(0, 1, 0.01) var tree_momentum_bonus: float = 0.12
 @export_range(0.5, 10, 0.5) var tree_momentum_duration: float = 3.0
 var emberguard_used: bool = false
+var run_region: int = 0
+var run_id: String = ""
+var restoration_due: int = 0
+var restoration_visual: float = 0.0
+var newly_restored: int = 0
+var restoration_tween: Tween
+var sandbox: bool = false
+var normal_progress_path: String = ""
+var region_session_best: Array[int] = [0, 0, 0]
+
 
 @onready var player = $Player
 @onready var enemies: Node2D = $Enemies
@@ -124,6 +136,7 @@ var health_label: Label
 var health_bar: ProgressBar
 var build_label: Label
 var cards_label: Label
+var overlay_shade: ColorRect
 var overlay: PanelContainer
 var overlay_title: Label
 var overlay_text: Label
@@ -187,6 +200,7 @@ var attack_context: Dictionary = {}
 func _ready() -> void:
 	if OS.get_cmdline_user_args().has("--test-mode"):
 		progress.path = "user://test_progress_%d.json" % OS.get_process_id()
+	normal_progress_path = progress.path
 	progress.load_progress()
 	best_wave = progress.best_wave
 	rng.randomize()
@@ -273,6 +287,14 @@ func restart_run() -> void:
 		for child in container.get_children():
 			container.remove_child(child)
 			child.queue_free()
+	if is_instance_valid(restoration_tween):
+		restoration_tween.kill()
+	run_region = WORLD.frontier(progress.world)
+	run_id = Crypto.new().generate_random_bytes(16).hex_encode()
+	restoration_due = 0
+	newly_restored = 0
+	restoration_visual = WORLD.fraction(progress.world, run_region)
+	best_wave = maxi(int(progress.world.best[run_region]), region_session_best[run_region])
 	effects.clear()
 	wave = 0
 	kills = 0
@@ -346,7 +368,10 @@ func _show_town() -> void:
 	town_panel.open_town()
 
 func talent_cost(id: String) -> int:
-	return int(get("tree_cost_%d" % TALENTS.NODES[id].tier)) if TALENTS.NODES.has(id) else 0
+	if not TALENTS.NODES.has(id):
+		return 0
+	var tier: int = TALENTS.NODES[id].tier
+	return int(get("tree_cost_%d" % tier)) if tier <= 5 else [160, 190, 240, 260, 320, 350, 420, 460, 520, 650][tier - 6]
 
 func buy_talent(id: String) -> bool:
 	return state == State.TOWN and progress.buy(id, talent_cost(id))
@@ -361,6 +386,7 @@ func begin_wave() -> void:
 	wave += 1
 	emberguard_used = false
 	best_wave = maxi(best_wave, wave)
+	region_session_best[run_region] = best_wave
 	wave_budget = wave_settings(wave).budget
 	remaining_to_spawn = wave_budget
 	wave_seconds = 0.0
@@ -591,7 +617,7 @@ func complete_wave() -> void:
 		last_healed_wave = wave
 		var perks: Dictionary = TALENTS.bonuses(active_talents, self)
 		if perks.healing > 0:
-			player.health = minf(player.health_limit, player.health + player.health_limit * perks.healing)
+			player.health = minf(player.health_limit, player.health + player.health_limit * perks.healing * perks.heal_multiplier)
 			player.health_changed.emit(player.health, player.health_limit)
 	if card_wave(wave):
 		state = State.UPGRADE
@@ -692,6 +718,7 @@ func finish_run(victory: bool) -> void:
 	run_ended_usec = Time.get_ticks_usec()
 	result_victory = victory
 	reward_due = predicted_reward()
+	restoration_due = WORLD.reward(completed_waves, elapsed, kills, shots_hit) if victory or player.health <= 0 or OS.get_cmdline_user_args().has("--test-mode") else 0
 	get_tree().paused = true
 	settle_reward()
 
@@ -705,10 +732,23 @@ func settle_reward() -> void:
 		return
 	if not progress.available:
 		progress.load_progress()
-	reward_saved = progress.award(reward_due, best_wave)
+	var before: int = WORLD.restored(progress.world)
+	reward_saved = progress.settle_expedition(reward_due, wave, run_region, restoration_due, run_id)
+	if reward_saved:
+		newly_restored = WORLD.restored(progress.world) - before
+		restoration_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		restoration_tween.tween_method(func(value: float): restoration_visual = value; queue_redraw(), restoration_visual, WORLD.fraction(progress.world, run_region), 1.5)
 	show_overlay("PROTOTYPE LIMIT REACHED" if result_victory else "THE FLAME FADES", "Technical safety stop. This is not a victory." if result_victory else "Every attempt teaches you something.")
 	overlay_text.text += "\nWave %d / %d   |   %d cleared   |   %d defeats   |   Best %d\nEchoes earned: %d   |   Total: %d\n%s" % [wave, total_waves, completed_waves, kills, best_wave, reward_due, progress.echoes, "Reward saved. Run items reset on your next attempt." if reward_saved else progress.message]
 	overlay_text.text += "\nRun time (including choices / pauses): %.1fs   |   Active: %.1fs" % [run_wall_seconds(), elapsed]
+	overlay_text.text += "\n%s  /  +%d Restoration  /  %.0f%% healed" % [WORLD.REGIONS[run_region].name, restoration_due, WORLD.fraction(progress.world, run_region) * 100]
+	if newly_restored > 0:
+		overlay_title.text = "LIFE RETURNS"
+		overlay_title.add_theme_color_override("font_color", Color("afe0b9"))
+		overlay_text.text = "%s is restored. %s\n+%d Restoration  /  +%d Echoes  /  %d regions restored\n%s" % [WORLD.REGIONS[run_region].name, WORLD.REGIONS[run_region].mood, restoration_due, reward_due, WORLD.restored(progress.world), "Discover " + WORLD.REGIONS[WORLD.frontier(progress.world)].name + " — your next expedition begins at local Wave 1. Overflow was carried forward." if WORLD.restored(progress.world) < 3 else "All three regions healed. Your ascent continues; surplus Restoration is preserved."]
+		overlay.position.y = 140
+		overlay.size.y = 270
+		overlay_shade.color.a = 0.12
 	if reward_saved:
 		add_button("Return to Town", return_to_town)
 	else:
@@ -732,22 +772,22 @@ func spawn_projectile(origin: Vector2, direction: Vector2, damage: float, contex
 	var projectile = PROJECTILE.instantiate()
 	projectile.position = origin
 	projectile.direction = direction
-	projectile.damage = damage
+	var perks: Dictionary = TALENTS.bonuses(active_talents, self)
+	projectile.damage = damage * (1.3 if echo and active_talents.has("flow_10") else 1.0)
 	projectile.max_hits = 2 if mechanic_cards.has(4) else 1
 	projectile.echoed = echo
 	if main and not echo and player.kindling_remaining > 0 and active_talents.has("power_1"):
-		projectile.kindling_bonus = tree_kindling_bonus
+		projectile.kindling_bonus = tree_kindling_bonus + (0.25 if active_talents.has("power_8") else 0.0)
 		player.kindling_remaining = 0
 	if main and player.overcharge_ready and mechanic_cards.has(5):
 		projectile.damage = charged_damage(projectile.damage)
 		projectile.charged = true
 		player.overcharge_ready = false
 		player.queue_redraw()
-	projectile.opening_bonus = TALENTS.bonuses(active_talents, self).opening
+	projectile.opening_bonus = perks.opening
 	projectile.speed = projectile_speed
 	projectile.lifetime = projectile_lifetime
-	if equipment.scepter == "hunter_scepter":
-		projectile.direct_modifier = hunter_damage.bind(context)
+	projectile.direct_modifier = talent_direct_damage.bind(context)
 	projectile.impact.connect(func(at, amount, primary): projectile_impact(at, amount, primary, context))
 	projectiles.add_child(projectile)
 	shots_fired += 1
@@ -777,7 +817,11 @@ func update_build() -> void:
 	player.hurt_haste_ratio = perks.haste
 	player.hurt_haste_duration = tree_haste_duration
 	player.momentum_bonus = tree_momentum_bonus if active_talents.has("flow_1") else 0.0
-	player.momentum_duration = tree_momentum_duration
+	player.momentum_duration = tree_momentum_duration + (2.0 if active_talents.has("flow_8") else 0.0)
+	player.momentum_haste = 0.12 if active_talents.has("flow_15") else 0.0
+	player.extra_protection = 0.2 if active_talents.has("vitality_8") else 0.0
+	player.damage_reduction = 0.12 if active_talents.has("vitality_12") else 0.0
+	player.last_light = active_talents.has("vitality_15")
 	player.health = minf(player.health, player.health_limit)
 	player.health_changed.emit(player.health, player.health_limit)
 	if is_instance_valid(inventory_panel) and inventory_panel.is_open:
@@ -791,11 +835,13 @@ func build_for(scepter: String, book: String) -> Dictionary:
 	if scepter == "swift_scepter":
 		interval *= 1.0 - scepter_cast_reduction
 	interval *= 1.0 - minf(0.6, perks.interval)
+	if active_talents.has("power_12"):
+		perks.damage += mechanic_cards.size() * 0.06
 	var damage: float = player.base_damage * (1.0 + power_upgrades * upgrade_damage_bonus) * (1.0 + gear_damage) * (1.0 + perks.damage)
-	return {"damage": damage, "interval": maxf(player.MIN_CAST_INTERVAL, interval), "projectiles": mini(player.MAX_PROJECTILES_PER_CAST, 1 + fan_upgrades * upgrade_projectiles), "splash": book == "cinder_codex", "splash_damage": damage * explosion_damage_ratio if book == "cinder_codex" else 0.0, "burst_damage": burst_damage(damage), "charged_damage": charged_damage(damage)}
+	return {"damage": damage, "interval": maxf(player.MIN_CAST_INTERVAL, interval), "projectiles": mini(player.MAX_PROJECTILES_PER_CAST, 1 + fan_upgrades * upgrade_projectiles), "splash": book == "cinder_codex", "splash_damage": damage * explosion_damage_ratio * perks.area_multiplier if book == "cinder_codex" else 0.0, "burst_damage": burst_damage(damage), "charged_damage": charged_damage(damage)}
 
 func burst_damage(amount: float) -> float:
-	return amount * burst_damage_ratio
+	return amount * burst_damage_ratio * TALENTS.bonuses(active_talents, self).area_multiplier
 
 func charged_damage(amount: float) -> float:
 	return amount * (1.0 + overcharge_bonus)
@@ -939,7 +985,7 @@ func item_direct_hit(primary: Object, amount: float, context: Dictionary) -> voi
 		if phoenix_hits >= 10:
 			phoenix_hits = 0
 			phoenix_left = phoenix_cooldown
-			var healing: float = minf(player.health_limit - player.health, player.health_limit * phoenix_heal_ratio)
+			var healing: float = minf(player.health_limit - player.health, player.health_limit * phoenix_heal_ratio * TALENTS.bonuses(active_talents, self).heal_multiplier)
 			if healing > 0:
 				player.health += healing
 				player.health_changed.emit(player.health, player.health_limit)
@@ -950,7 +996,7 @@ func item_direct_hit(primary: Object, amount: float, context: Dictionary) -> voi
 	# Consume the first-hit attempt even if no second target is in range.
 	context.storm_used = true
 	var nearest = null
-	var distance: float = storm_radius * storm_radius
+	var distance: float = pow(storm_radius * (1.4 if active_talents.has("flow_12") else 1.0), 2)
 	for enemy in enemies.get_children():
 		if enemy == primary or enemy.dead:
 			continue
@@ -961,7 +1007,7 @@ func item_direct_hit(primary: Object, amount: float, context: Dictionary) -> voi
 	if nearest != null:
 		var from: Vector2 = primary.global_position
 		var to: Vector2 = nearest.global_position
-		nearest.take_damage(amount * storm_damage_ratio, from.direction_to(to))
+		nearest.take_damage(amount * storm_damage_ratio * (1.25 if active_talents.has("flow_12") else 1.0), from.direction_to(to))
 		if effects.size() < 512:
 			effects.append({"at": from, "to": to, "amount": 0, "killed": false, "life": 0.25, "duration": 0.25, "lightning": true})
 
@@ -974,7 +1020,7 @@ func projectile_impact(at: Vector2, hit_damage: float, primary: Object, context:
 		primary.set_meta("ember_burst_triggered", true)
 		area_damage(primary.global_position, burst_damage(hit_damage), burst_radius, primary, true)
 	if codex_active:
-		area_damage(at, hit_damage * explosion_damage_ratio, explosion_radius, primary)
+		area_damage(at, hit_damage * explosion_damage_ratio * TALENTS.bonuses(active_talents, self).area_multiplier, explosion_radius, primary)
 
 func area_damage(at: Vector2, amount: float, radius: float, primary: Object, burst: bool = false) -> void:
 	if amount <= 0:
@@ -1000,7 +1046,7 @@ func emberguard() -> void:
 	if state != State.FIGHTING or emberguard_used or not active_talents.has("vitality_1"):
 		return
 	emberguard_used = true
-	var healing: float = minf(player.health_limit - player.health, player.health_limit * tree_emberguard_heal)
+	var healing: float = minf(player.health_limit - player.health, player.health_limit * tree_emberguard_heal * TALENTS.bonuses(active_talents, self).heal_multiplier)
 	player.health += healing
 	player.health_changed.emit(player.health, player.health_limit)
 	if healing > 0 and effects.size() < 512:
@@ -1027,7 +1073,7 @@ func update_hud() -> void:
 	cards_label.text = " / ".join(names)
 	if player.overcharge_enabled:
 		cards_label.text += "   [READY]" if player.overcharge_ready else "   [%d/4 hits]" % player.overcharge_hits
-	wallet_label.text = "ECHOES  %d   /   RUN REWARD  %d" % [progress.echoes, predicted_reward()]
+	wallet_label.text = "%s  /  %.0f%% healed  /  ECHOES %d (+%d)" % [WORLD.REGIONS[run_region].name, WORLD.fraction(progress.world, run_region) * 100, progress.echoes, predicted_reward()]
 	var scepter_name: String = "Empty" if equipment.scepter.is_empty() else CATALOG.ITEMS[equipment.scepter].name
 	var book_name: String = "Empty" if equipment.book.is_empty() else CATALOG.ITEMS[equipment.book].name
 	loot_label.text = "SCEPTER: %s   /   BOOK: %s   /   BAG: %d/8   /   I: inspect & equip" % [scepter_name, book_name, bag_used()]
@@ -1063,7 +1109,7 @@ func create_interface() -> void:
 	boss_bar.add_theme_stylebox_override("fill", boss_fill)
 	ui.add_child(boss_bar)
 	add_label(ui, "L O O T F A L L", Vector2(64, 25), 30, Color("edcca0"))
-	add_label(ui, "THE EMBER TRIAL   /   ARENA PROTOTYPE", Vector2(65, 66), 13, Color("9da6b3"))
+	add_label(ui, "RECLAIM LIFE   /   THE RESTORATION EXPEDITION", Vector2(65, 66), 13, Color("9da6b3"))
 	hud = add_label(ui, "", Vector2(580, 53), 17, Color("e9ddc7"))
 	wallet_label = add_label(ui, "", Vector2(580, 80), 14, Color("ccac7b"))
 	loot_label = add_label(ui, "", Vector2(65, 99), 13, Color("d6b67b"))
@@ -1084,6 +1130,7 @@ func create_interface() -> void:
 	cards_label = add_label(ui, "", Vector2(365, 722), 13, Color("baf7ff"))
 	add_label(ui, "WASD Move / MOUSE Aim / LMB Cast / I Equipment / ESC Pause" + (" / F1 Dev" if OS.is_debug_build() else ""), Vector2(365, 770), 13, Color("8995a5"))
 	var shade := ColorRect.new()
+	overlay_shade = shade
 	shade.color = Color(0.025, 0.035, 0.06, 0.88)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1135,6 +1182,9 @@ func show_overlay(title: String, text: String) -> void:
 	for child in buttons.get_children():
 		buttons.remove_child(child)
 		child.queue_free()
+	overlay_shade.color.a = 0.25 if state == State.FINISHED else 0.88
+	overlay.position.y = 175 if state == State.FINISHED else 255
+	overlay.size.y = 450 if state == State.FINISHED else 290
 	overlay_title.text = title
 	overlay_title.add_theme_color_override("font_color", Color("ffc38f") if state == State.BOSS_INTRO else Color("e9ddc7"))
 	overlay_title.add_theme_font_size_override("font_size", 34 if state == State.BOSS_INTRO else 28)
@@ -1192,34 +1242,43 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, point + Vector2(24, -25 - (1 - alpha) * 25), str(snappedf(effect.amount, 0.1)), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
 
 func draw_floor() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color("0e131e"))
-	draw_rect(BOUNDS.grow(12), Color("090e18"))
-	draw_rect(BOUNDS.grow(8), Color("393541"))
-	draw_rect(BOUNDS.grow(6), Color("8c7357"), false, 1)
-	draw_rect(BOUNDS, Color("242832"))
-	# Coordinate-based variation never consumes the gameplay random stream.
-	for row in 7:
-		for column in 10:
-			var left: float = BOUNDS.position.x + column * 128 - (64 if row % 2 else 0)
-			var top: float = BOUNDS.position.y + row * 96
-			var slab := Rect2(left + 1, top + 1, 126, 94).intersection(BOUNDS)
-			if not slab.has_area():
-				continue
-			var variation: int = (row * 7 + column * 11) % 5
-			draw_rect(slab, Color("292d38").darkened(variation * 0.018))
-			draw_line(slab.position, slab.position + Vector2(slab.size.x, 0), Color("32343f"), 1)
-			draw_line(slab.position + Vector2(0, slab.size.y), slab.end, Color("1c202b"), 2)
-			if variation == 0 and slab.size.x > 90 and slab.size.y > 70:
-				var crack: Vector2 = slab.position + Vector2(25, 23)
-				draw_polyline(PackedVector2Array([crack, crack + Vector2(17, 8), crack + Vector2(20, 20), crack + Vector2(34, 27)]), Color("20242e"), 1.5)
-	var center: Vector2 = BOUNDS.get_center()
-	for radius in [93.0, 100.0, 205.0]:
-		draw_arc(center, radius, 0, TAU, 96, Color("393b46"), 1)
-	for index in 8:
-		var ray: Vector2 = Vector2.from_angle(index * TAU / 8)
-		draw_line(center + ray * 96, center + ray * 105, Color("615447"), 2)
-	draw_rect(BOUNDS.grow(-3), Color(0.03, 0.04, 0.07, 0.25), false, 6)
-	for corner in [Vector2(79, 143), Vector2(1201, 143), Vector2(79, 705), Vector2(1201, 705)]:
-		draw_circle(corner + Vector2(0, 3), 13, Color("111722"))
-		draw_polyline(PackedVector2Array([corner + Vector2(0, -10), corner + Vector2(9, 0), corner + Vector2(0, 10), corner + Vector2(-9, 0), corner + Vector2(0, -10)]), Color("86654d"), 2, true)
-		draw_circle(corner, 3, Color("e8ae73"))
+	WORLD_ART.floor_scene(self, run_region, restoration_visual)
+
+func talent_direct_damage(target: Object, amount: float, context: Dictionary) -> float:
+	var value: float = hunter_damage(target, amount, context)
+	if not target.boss_name.is_empty() and active_talents.has("power_10"):
+		value *= 1.25
+	return value
+
+func enter_world_sandbox() -> bool:
+	if not OS.is_debug_build() or state != State.TOWN:
+		return false
+	sandbox = not sandbox
+	progress = PROGRESS.new()
+	progress.path = "user://restoration_sandbox.json" if sandbox else normal_progress_path
+	progress.load_progress()
+	for index in 3:
+		region_session_best[index] = int(progress.world.best[index])
+	restart_run()
+	_show_town()
+	return true
+
+func sandbox_preview(stage: int) -> bool:
+	if not sandbox or not OS.is_debug_build() or state != State.TOWN or stage not in [0, 1, 2, 3]:
+		return false
+	var next: Dictionary = progress.world.duplicate(true)
+	var region: int = WORLD.frontier(next)
+	next.points[region] = WORLD.REGIONS[region].cost * stage / 4
+	var ok: bool = progress._save(progress.echoes, progress.best_wave, progress.talents, next)
+	town_panel.refresh()
+	return ok
+
+func sandbox_complete() -> bool:
+	if not sandbox or not OS.is_debug_build() or state != State.TOWN:
+		return false
+	var region: int = WORLD.frontier(progress.world)
+	var points: int = WORLD.REGIONS[region].cost - int(progress.world.points[region]) + 120
+	var ok: bool = progress.settle_expedition(3000, 1, region, points, Crypto.new().generate_random_bytes(16).hex_encode())
+	town_panel.status.text = "SANDBOX: region healed, 120 overflow points and 3000 test Echoes. Normal save untouched." if ok else progress.message
+	town_panel.refresh()
+	return ok
