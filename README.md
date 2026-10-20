@@ -123,7 +123,7 @@ New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
 
 For parallel suites use a different APPDATA subdirectory per process to avoid MCP registry file contention. The test scripts require `--test-mode`, use process-specific file names and do not modify normal progress. The arena test accelerates the full run by defeating enemies programmatically; it does not validate human difficulty or game feel.
 
-Current verification: 64 arena + 54 loot/console + 50 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish + 65 item synergy + 63 early progression + 19 player art = **917 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six CE5 gameplay/UI scripts passed Godot MCP `script_check`; four native CE5 town/tree previews were inspected. See CE5_PLAYTEST.md for current root and layout coverage. These are automated checks, not human balance acceptance.
+Current verification: 64 arena + 54 loot/console + 50 inventory + 69 town/tree + 19 encounter/disposal + 28 rarity + 74 counterplay + 249 ascent + 128 card synergy + 35 combat polish + 65 item synergy + 63 early progression + 20 player art + 12 visual lift = **930 checks, no failures** on Godot 4.7.2. Rarity tests include exact roll order/early exit, 0%/100% endpoints, 100,000 seeded cascade samples, real drop gates, the natural Codex limit and legacy profiles. Six CE5 gameplay/UI scripts passed Godot MCP `script_check`; four native CE5 town/tree previews were inspected. See CE5_PLAYTEST.md for current root and layout coverage. These are automated checks, not human balance acceptance.
 
 For staged engine previews:
 
@@ -184,3 +184,15 @@ Public GitHub repositories, explicitly authorized by the owner on 2026-10-18: [g
 This game directory is versioned separately from the development chronicle at `C:/Users/elias/OneDrive/Dokumente/ChatGPT/Lootfall 2.0`. This preserves the existing open-editor and MCP paths. Game commits include scripts, scenes, tests, project settings and the active Godot MCP Toolkit with its license. Caches, save files, machine-specific MCP settings and the inactive Godot AI addon are excluded without deleting local files.
 
 After a tested feature, commit the selected game changes, then record that game commit in the chronicle alongside its screenshots and documentation and commit those there. No remote publishing is implied by a local commit.
+
+## Visual Lift 01 — procedural art polish
+
+The default Apprentice, Chaser, Seer and Guardian now share outlined, graphic silhouettes. Draw-only bobbing, floating runes, cast recoil and rush accents leave physics untouched. Existing owner-supplied mage artwork remains available through Player → Use Artwork; the default is false for a coherent procedural style.
+
+Fireballs have directional flame shapes; Overcharge uses cyan geometry, Burst uses short radial strokes, Storm uses a two-tone zigzag, and armor blocks add a shield stroke. Effects reuse existing events and lifetimes. The floor uses deterministic large slabs, sparse cracks and inset border shadows; it never consumes gameplay RNG. No new mechanics, values, collision, loot, rewards or persistence rules.
+
+Verification: all 14 suites, **930 checks / zero failures** on Godot 4.7.2. Includes `tests/visual_lift_test.gd` (12 checks: each role's visual clock/freeze/body state, gameplay RNG and pause). Native D3D12 captures cover each pass, scripted movement with two actual projectile hits, a real direct-kill Burst, Storm, both boss variants and the introduction. These are controlled engine scenarios, not a complete human run or sustained performance benchmark. The existing Windows v0.1 package has not been rebuilt.
+
+Run the added suite with the same isolated APPDATA setup as above:
+`& $godotExe --headless --path . --script res://tests/visual_lift_test.gd -- --test-mode`
+Capture `--view=visual_lift_burst` verifies a real projectile kill before saving; other existing preview views still work. Comparison images and the development report live in the separate chronicle.

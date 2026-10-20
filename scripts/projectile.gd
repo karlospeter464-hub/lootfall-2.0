@@ -52,7 +52,11 @@ func _draw() -> void:
 	if echoed:
 		draw_arc(Vector2.ZERO, 9, 0, TAU, 12, Color("c8a1ff"), 2)
 	if charged:
-		draw_circle(Vector2.ZERO, 10, Color(0.5, 0.95, 1.0, 0.6))
-	draw_line(-direction * 24, Vector2.ZERO, Color(0.95, 0.3, 0.1, 0.3), 12)
-	draw_line(-direction * 17, Vector2.ZERO, Color("f58d4d"), 5)
-	draw_circle(Vector2.ZERO, 5, Color("ffe7b1"))
+		draw_arc(Vector2.ZERO, 11, age * 8, age * 8 + PI * 1.5, 16, Color("baf7ff"), 2)
+	draw_set_transform(Vector2.ZERO, direction.angle())
+	var flame := Color("a98be3") if echoed else Color("f87950")
+	draw_colored_polygon(PackedVector2Array([Vector2(-29, -3), Vector2(-12, -5), Vector2(-4, -8), Vector2(8, 0), Vector2(-4, 8), Vector2(-17, 5)]), Color("141523"))
+	draw_colored_polygon(PackedVector2Array([Vector2(-26, -2), Vector2(-10, -3), Vector2(-3, -6), Vector2(6, 0), Vector2(-3, 6), Vector2(-16, 3)]), Color("77d8ef") if charged else flame)
+	draw_colored_polygon(PackedVector2Array([Vector2(-15, 0), Vector2(-3, -3), Vector2(5, 0), Vector2(-3, 3)]), Color("fff0ce"))
+	draw_line(Vector2(-33, -4), Vector2(-23, -4), Color(flame, 0.6), 1.5)
+	draw_set_transform(Vector2.ZERO)

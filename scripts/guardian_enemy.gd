@@ -90,14 +90,27 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(-38, -54), "CHARGE" if charge_state == Charge.WARNING else "RUSH", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("ffd291"))
 	elif charge_state == Charge.RECOVERY and not dead:
 		draw_string(ThemeDB.fallback_font, Vector2(-38, -54), "RECOVERY", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("baf7ff"))
-	var color := Color("8ebcac") if flash <= 0 else Color("fff1cc")
-	draw_colored_polygon(PackedVector2Array([Vector2(-23, -20), Vector2(23, -20), Vector2(26, 16), Vector2(0, 27), Vector2(-26, 16)]), color.darkened(0.35))
-	draw_rect(Rect2(-18, -16, 36, 31), color)
-	draw_line(Vector2(-10, -1), Vector2(0, -12), Color("203b40"), 4)
-	draw_line(Vector2(0, -12), Vector2(10, -1), Color("203b40"), 4)
-	draw_line(Vector2(0, -12), Vector2(0, 11), Color("203b40"), 4)
-	if boss_name.is_empty():
-		draw_string(ThemeDB.fallback_font, Vector2(-24, -35), "RUNE", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, color)
 	if armor > 0 and minimum_ratio < 1:
 		var shield := PackedVector2Array([Vector2(-29, -25), Vector2(29, -25), Vector2(31, 18), Vector2(0, 34), Vector2(-31, 18), Vector2(-29, -25)])
 		draw_polyline(shield, Color("c0f1ff") if flash > 0 else Color("6398b6"), 4 if flash > 0 else 1.5, true)
+
+func draw_body() -> void:
+	var moving: float = minf(velocity.length() / move_speed, 1.0) if charge_state == Charge.WALKING else 0.0
+	var stomp: float = absf(sin(visual_clock * 7)) * moving
+	var lean: float = charge_direction.x * 0.14 if charge_state == Charge.RUSHING else 0.0
+	draw_set_transform(Vector2(0, -stomp), lean)
+	var stone := Color("789d9c") if flash <= 0 else Color("fff1cc")
+	draw_colored_polygon(PackedVector2Array([Vector2(-28, -24), Vector2(-14, -29), Vector2(0, -21), Vector2(14, -29), Vector2(28, -24), Vector2(30, 12), Vector2(16, 25), Vector2(-16, 25), Vector2(-30, 12)]), Color("101421"))
+	draw_colored_polygon(PackedVector2Array([Vector2(-24, -21), Vector2(-14, -24), Vector2(-7, -16), Vector2(-13, 9), Vector2(-25, 6)]), stone)
+	draw_colored_polygon(PackedVector2Array([Vector2(24, -21), Vector2(14, -24), Vector2(7, -16), Vector2(13, 9), Vector2(25, 6)]), stone.darkened(0.25))
+	draw_colored_polygon(PackedVector2Array([Vector2(-10, -14), Vector2(10, -14), Vector2(14, 12), Vector2(0, 23), Vector2(-14, 12)]), Color("344a56"))
+	draw_rect(Rect2(-10, -28, 20, 13), Color("101421"))
+	draw_line(Vector2(-6, -22), Vector2(6, -22), Color("e4d0a4"), 3)
+	draw_polyline(PackedVector2Array([Vector2(0, -9), Vector2(8, 3), Vector2(0, 13), Vector2(-8, 3), Vector2(0, -9)]), Color("b6e3dc") if charge_state != Charge.RUSHING else Color("ffb875"), 3, true)
+	draw_line(Vector2(-13, 14), Vector2(-16, 24 + stomp * 2), stone, 7)
+	draw_line(Vector2(13, 14), Vector2(16, 24 - stomp * 2), stone.darkened(0.2), 7)
+	if charge_state == Charge.RUSHING:
+		for index in 3:
+			var start: Vector2 = -charge_direction * (28 + index * 8) + charge_direction.orthogonal() * (index - 1) * 12
+			draw_line(start, start - charge_direction * 18, Color("e9b97d"), 2)
+	draw_set_transform(Vector2.ZERO)

@@ -76,9 +76,6 @@ func _physics_process(delta: float) -> void:
 
 func _draw() -> void:
 	super._draw()
-	draw_colored_polygon(PackedVector2Array([Vector2(0, -29), Vector2(18, -5), Vector2(0, 13), Vector2(-18, -5)]), Color("739bd0") if flash <= 0 else Color("fff1cc"))
-	draw_circle(Vector2(0, -6), 6, Color("19253a"))
-	draw_circle(Vector2(0, -6), 2, Color("f5d18b"))
 	if interrupted_left > 0:
 		draw_string(ThemeDB.fallback_font, Vector2(-29, -40), "BROKEN", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("99f5dc"))
 		draw_line(Vector2(-23, -24), Vector2(-32, -33), Color("99f5dc"), 3)
@@ -99,3 +96,23 @@ func _draw() -> void:
 		draw_arc(point, local_radius, 0, TAU, 48, color, 2, true)
 		if charging:
 			draw_arc(point, local_radius + 5 / global_scale.x, -PI / 2, -PI / 2 + TAU * (1.0 - charge_left / windup), 48, color, 3, true)
+
+func draw_body() -> void:
+	var blue := Color("8c8bbd") if flash <= 0 else Color("fff1cc")
+	draw_arc(Vector2(0, 18), 23, 0, TAU, 24, Color("5e597e"), 1.5)
+	for index in 4:
+		var rune: Vector2 = Vector2.from_angle(index * PI / 2 + visual_clock * 0.4) * 23
+		draw_line(rune + Vector2(0, 18), rune * 1.18 + Vector2(0, 14), Color("aaa3dc"), 2)
+	draw_set_transform(Vector2(0, sin(visual_clock * 3.5) * 2.5 - 3))
+	draw_colored_polygon(PackedVector2Array([Vector2(0, -30), Vector2(17, -10), Vector2(12, 4), Vector2(17, 22), Vector2(0, 14), Vector2(-13, 23), Vector2(-11, 1), Vector2(-17, -10)]), Color("101421"))
+	draw_colored_polygon(PackedVector2Array([Vector2(0, -25), Vector2(12, -10), Vector2(7, 3), Vector2(11, 17), Vector2(0, 10), Vector2(-8, 17), Vector2(-7, 0), Vector2(-12, -10)]), blue.darkened(0.3))
+	draw_colored_polygon(PackedVector2Array([Vector2(0, -24), Vector2(10, -10), Vector2(0, -2), Vector2(-10, -10)]), blue)
+	draw_circle(Vector2(0, -10), 5, Color("1a2034"))
+	draw_line(Vector2(-3, -10), Vector2(3, -10), Color("ffe1a3"), 2)
+	draw_polyline(PackedVector2Array([Vector2(0, -1), Vector2(4, 4), Vector2(0, 9), Vector2(-4, 4), Vector2(0, -1)]), Color("c7b5f0"), 1.5, true)
+	if charging:
+		var readiness: float = clampf(1 - charge_left / windup, 0, 1)
+		draw_arc(Vector2(0, -10), 21, -PI / 2, -PI / 2 + TAU * readiness, 32, Color("ed8ca8"), 3)
+		draw_line(Vector2(-20, -1), Vector2(-25, -15 - readiness * 6), Color("ed8ca8"), 3)
+		draw_line(Vector2(20, -1), Vector2(25, -15 - readiness * 6), Color("ed8ca8"), 3)
+	draw_set_transform(Vector2.ZERO)

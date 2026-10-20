@@ -1136,6 +1136,8 @@ func show_overlay(title: String, text: String) -> void:
 		buttons.remove_child(child)
 		child.queue_free()
 	overlay_title.text = title
+	overlay_title.add_theme_color_override("font_color", Color("ffc38f") if state == State.BOSS_INTRO else Color("e9ddc7"))
+	overlay_title.add_theme_font_size_override("font_size", 34 if state == State.BOSS_INTRO else 28)
 	overlay_text.text = text
 	overlay.show()
 
@@ -1150,24 +1152,7 @@ func add_button(text: String, action: Callable) -> void:
 		button.grab_focus()
 
 func _draw() -> void:
-	draw_rect(Rect2(0, 0, 1280, 800), Color("0e1520"))
-	draw_rect(BOUNDS.grow(10), Color("3c3c45"))
-	draw_rect(BOUNDS.grow(6), Color("746047"), false, 1)
-	draw_rect(BOUNDS, Color("202b37"))
-	for x in range(64, 1216, 64):
-		for y in range(128, 720, 48):
-			var offset: int = 32 if ((y - 128) / 48) % 2 == 0 else 0
-			draw_rect(Rect2(x + offset, y, 63, 47).intersection(BOUNDS), Color("293440"), false, 1)
-	var center: Vector2 = BOUNDS.get_center()
-	for radius in [86.0, 96.0, 205.0]:
-		draw_arc(center, radius, 0, TAU, 96, Color("3d464c"), 1.5)
-	for index in 12:
-		var point: Vector2 = center + Vector2.from_angle(index * TAU / 12) * 96
-		draw_line(point, center + (point - center) * 1.12, Color("73694f"), 2)
-	for corner in [Vector2(79, 143), Vector2(1201, 143), Vector2(79, 705), Vector2(1201, 705)]:
-		draw_circle(corner, 17, Color(0.85, 0.42, 0.18, 0.08))
-		draw_circle(corner, 8, Color("b37c49"))
-		draw_circle(corner, 3, Color("ffe0a0"))
+	draw_floor()
 	for effect in effects:
 		var alpha: float = effect.life / effect.get("duration", 0.5)
 		var color := Color("ffd291") if effect.killed else Color("f8e5c2")
@@ -1178,18 +1163,63 @@ func _draw() -> void:
 			draw_string(ThemeDB.fallback_font, point + Vector2(20, -25), "+%.1f HP" % effect.amount, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.4, 1, 0.65, alpha))
 			continue
 		if effect.get("lightning", false):
-			var middle: Vector2 = (point + effect.to) * 0.5 + point.direction_to(effect.to).orthogonal() * 12
-			draw_polyline(PackedVector2Array([point, middle, effect.to]), Color(0.6, 0.85, 1, alpha), 4, true)
+			var route: Vector2 = effect.to - point
+			var side: Vector2 = route.normalized().orthogonal()
+			var bolt := PackedVector2Array([point, point + route * 0.3 + side * 12, point + route * 0.44 - side * 8, point + route * 0.7 + side * 6, effect.to])
+			draw_polyline(bolt, Color(0.25, 0.48, 0.8, alpha), 7, true)
+			draw_polyline(bolt, Color(0.78, 0.94, 1, alpha), 2, true)
+			draw_arc(effect.to, 7 + (1 - alpha) * 12, 0, TAU, 12, Color(0.65, 0.86, 1, alpha), 2)
 			continue
 		if effect.get("blocked", false):
+			draw_polyline(PackedVector2Array([point + Vector2(-16, -18), point + Vector2(0, -9), point + Vector2(16, -18)]), Color(0.55, 0.84, 1.0, alpha), 3, true)
 			draw_string(ThemeDB.fallback_font, point + Vector2(-9, -25 - (1 - alpha) * 25), "%s BLOCKED" % str(snappedf(effect.amount, 0.1)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.55, 0.84, 1.0, alpha))
 			continue
 		if effect.has("explosion"):
 			if effect.get("burst", false):
-				draw_circle(point, effect.explosion, Color(1, 0.35, 0.08, alpha * 0.22))
-				draw_arc(point, effect.explosion, 0, TAU, 40, Color(1, 0.7, 0.25, alpha), 4)
+				draw_circle(point, effect.explosion, Color(1, 0.35, 0.08, alpha * 0.09))
+				var ring: float = effect.explosion * (0.65 + (1 - alpha) * 0.35)
+				draw_arc(point, ring, 0, TAU, 24, Color(1, 0.7, 0.25, alpha), 3)
+				for index in 8:
+					var ray: Vector2 = Vector2.from_angle(index * TAU / 8 + 0.2)
+					draw_line(point + ray * ring * 0.4, point + ray * ring, Color(1, 0.84, 0.58, alpha), 3)
 			draw_circle(point, effect.explosion * (1.0 - alpha), Color(1.0, 0.55, 0.2, alpha * 0.12))
 			draw_arc(point, effect.explosion * (1.0 - alpha), 0, TAU, 40, color, 2)
 			continue
 		draw_arc(point, 8 + (1 - alpha) * (30 if effect.killed else 12), 0, TAU, 16, color, 2)
+		for index in 4:
+			var ray: Vector2 = Vector2.from_angle(index * PI / 2 + PI / 4)
+			draw_line(point + ray * 4, point + ray * (10 + (1 - alpha) * 10), color, 2)
 		draw_string(ThemeDB.fallback_font, point + Vector2(24, -25 - (1 - alpha) * 25), str(snappedf(effect.amount, 0.1)), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
+
+func draw_floor() -> void:
+	draw_rect(Rect2(0, 0, 1280, 800), Color("0e131e"))
+	draw_rect(BOUNDS.grow(12), Color("090e18"))
+	draw_rect(BOUNDS.grow(8), Color("393541"))
+	draw_rect(BOUNDS.grow(6), Color("8c7357"), false, 1)
+	draw_rect(BOUNDS, Color("242832"))
+	# Coordinate-based variation never consumes the gameplay random stream.
+	for row in 7:
+		for column in 10:
+			var left: float = BOUNDS.position.x + column * 128 - (64 if row % 2 else 0)
+			var top: float = BOUNDS.position.y + row * 96
+			var slab := Rect2(left + 1, top + 1, 126, 94).intersection(BOUNDS)
+			if not slab.has_area():
+				continue
+			var variation: int = (row * 7 + column * 11) % 5
+			draw_rect(slab, Color("292d38").darkened(variation * 0.018))
+			draw_line(slab.position, slab.position + Vector2(slab.size.x, 0), Color("32343f"), 1)
+			draw_line(slab.position + Vector2(0, slab.size.y), slab.end, Color("1c202b"), 2)
+			if variation == 0 and slab.size.x > 90 and slab.size.y > 70:
+				var crack: Vector2 = slab.position + Vector2(25, 23)
+				draw_polyline(PackedVector2Array([crack, crack + Vector2(17, 8), crack + Vector2(20, 20), crack + Vector2(34, 27)]), Color("20242e"), 1.5)
+	var center: Vector2 = BOUNDS.get_center()
+	for radius in [93.0, 100.0, 205.0]:
+		draw_arc(center, radius, 0, TAU, 96, Color("393b46"), 1)
+	for index in 8:
+		var ray: Vector2 = Vector2.from_angle(index * TAU / 8)
+		draw_line(center + ray * 96, center + ray * 105, Color("615447"), 2)
+	draw_rect(BOUNDS.grow(-3), Color(0.03, 0.04, 0.07, 0.25), false, 6)
+	for corner in [Vector2(79, 143), Vector2(1201, 143), Vector2(79, 705), Vector2(1201, 705)]:
+		draw_circle(corner + Vector2(0, 3), 13, Color("111722"))
+		draw_polyline(PackedVector2Array([corner + Vector2(0, -10), corner + Vector2(9, 0), corner + Vector2(0, 10), corner + Vector2(-9, 0), corner + Vector2(0, -10)]), Color("86654d"), 2, true)
+		draw_circle(corner, 3, Color("e8ae73"))

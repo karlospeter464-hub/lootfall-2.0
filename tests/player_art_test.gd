@@ -24,6 +24,9 @@ func run() -> void:
 	game.player.controls_enabled = false
 	var player = game.player
 	var art: Sprite2D = player.artwork
+	check(not player.use_artwork and not art.visible, "Procedural mage is the Visual Lift default")
+	player.use_artwork = true
+	player.update_artwork(0)
 	var image := Image.new()
 	var image_error: Error = image.load_png_from_buffer(FileAccess.get_file_as_bytes("res://assets/art/characters/apprentice/apprentice_crimson_grimoire.png"))
 	print("ART SOURCE: ", image.get_size(), "; alpha bounds ", image.get_used_rect(), "; format ", image.get_format())

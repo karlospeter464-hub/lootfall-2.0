@@ -152,7 +152,7 @@ func capture() -> void:
 			game.offered_cards.assign([3, 4, 5])
 			game.refresh_upgrade_cards()
 			paused = true
-		elif argument == "--view=ce3_combat":
+		elif argument in ["--view=ce3_combat", "--view=visual_lift_burst"]:
 			game.start_card_test(2)
 			game.set_process(false)
 			game.player.controls_enabled = false
@@ -169,6 +169,19 @@ func capture() -> void:
 				shot.set_physics_process(false)
 			game.player.overcharge_ready = true
 			game.queue_redraw()
+			if argument == "--view=visual_lift_burst":
+				var victim = game.enemies.get_child(0)
+				victim.health = 1
+				var shot = game.projectiles.get_child(0)
+				shot.position = victim.position - Vector2(40, 0)
+				await physics_frame
+				await physics_frame
+				await process_frame
+				shot._physics_process(0.1)
+				if not game.effects.any(func(effect): return effect.get("burst", false)):
+					push_error("Visual Lift preview requires Burst from a real direct projectile kill")
+					quit(1)
+					return
 		elif argument == "--view=upgrade":
 			for enemy in game.enemies.get_children():
 				game.enemies.remove_child(enemy)
