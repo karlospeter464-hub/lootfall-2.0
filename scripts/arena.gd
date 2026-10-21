@@ -147,6 +147,7 @@ var loot: Node2D
 var dev_console
 var progress = PROGRESS.new()
 var completed_waves: int = 0
+var debug_echoes_paid: int = 0
 var codex_active: bool:
 	get: return equipment.book == "cinder_codex"
 var codex_spawned: bool = false
@@ -309,6 +310,7 @@ func restart_run() -> void:
 	kills = 0
 	upgrades_chosen = 0
 	completed_waves = 0
+	debug_echoes_paid = 0
 	codex_spawned = false
 	bag.fill("")
 	equipment = {"scepter": "", "book": ""}
@@ -733,9 +735,48 @@ func finish_run(victory: bool) -> void:
 	settle_reward()
 
 func predicted_reward() -> int:
-	var early: int = clampi(completed_waves, 0, 6)
-	var late: int = maxi(0, mini(completed_waves, 100) - 6)
+	return maxi(0, reward_for_waves(completed_waves) - debug_echoes_paid)
+
+func reward_for_waves(cleared: int) -> int:
+	var early: int = clampi(cleared, 0, 6)
+	var late: int = maxi(0, mini(cleared, 100) - 6)
 	return echoes_per_wave * early * (early + 1) / 2 + late * echoes_after_six + late * (late - 1) / 2 * echoes_after_six_growth
+
+func debug_jump_wave(number: int) -> bool:
+	if not OS.is_debug_build() or number < 1 or number > total_waves or state == State.FINISHED:
+		return false
+	if state == State.TOWN:
+		restart_run()
+	if number <= wave or number - 1 < completed_waves:
+		return false
+	var prepaid: int = maxi(debug_echoes_paid, reward_for_waves(number - 1))
+	var before: int = WORLD.restored(progress.world)
+	if not progress.debug_advance(prepaid - debug_echoes_paid, number - 1, run_region, WORLD.reward(number - 1, 0, 0, 0), run_id):
+		return false
+	newly_restored += WORLD.restored(progress.world) - before
+	debug_echoes_paid = prepaid
+	completed_waves = number - 1
+	restoration_pending = false
+	if is_instance_valid(dev_console):
+		dev_console.close_console()
+	inventory_panel.close_inventory()
+	get_tree().paused = false
+	overlay.hide()
+	for container in [enemies, projectiles, loot]:
+		for child in container.get_children():
+			container.remove_child(child)
+			child.queue_free()
+	pending_echo.clear()
+	hunter_marks.clear()
+	effects.clear()
+	if is_instance_valid(restoration_tween):
+		restoration_tween.kill()
+	restoration_visual = WORLD.fraction(progress.world, run_region)
+	wave = number - 1
+	player.controls_enabled = true
+	begin_wave()
+	show_notice("DEV jump: waves 1–%d credited. Build kept; skipped cards/items are not generated." % completed_waves)
+	return true
 
 func settle_reward() -> void:
 	if state != State.FINISHED or reward_saved:
@@ -762,6 +803,8 @@ func settle_reward() -> void:
 		overlay.position.y = 140
 		overlay.size.y = 270
 		overlay_shade.color.a = 0.12
+	if debug_echoes_paid > 0:
+		overlay_text.text += "\nDEV: %d Echoes already paid by jumps; %d remaining payout." % [debug_echoes_paid, reward_due]
 	if reward_saved:
 		add_button("Return to Town", return_to_town)
 	else:

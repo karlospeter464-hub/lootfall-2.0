@@ -1,5 +1,19 @@
 # Lootfall 2.0 — The Ember Trial
 
+## Habitat sanity pass & developer test tools (2026-10-21)
+
+F1 → **Test tools** now works in ordinary debug/editor sessions, without `--test-mode`:
+- **Jump + credit progress** starts wave N, treating 1..N-1 as cleared. Echoes and Restoration are saved immediately; only unpaid differences are added, including across region boundaries. Existing cards/equipment stay, skipped choices/items are not generated. Forward only; start a new run for earlier waves. The original isolated jump in Rewards & tools remains available.
+- **Add Echoes / Set Echoes / Zero Echoes** edits the current wallet; talents, prices paid and world progress stay intact. Zero does not undo purchases or cancel new rewards from future clears.
+- **Finish current wave** removes active/pending enemies without kill loot and invokes the normal wave-clear/card/Restoration flow. Echoes for actual later clears still pay at run end. Boss introductions must finish first.
+- Existing health, invulnerability, freeze, any-item drops and seeded encounter tools remain under Rewards & tools. Metrics identify normal/sandbox/test saves and prepaid Echoes.
+
+These tools intentionally affect the **currently loaded save**. For disposable experiments use Emberhaven's **Restoration sandbox — separate test save**, or launch with `-- --test-mode`. All entry points remain debug-only; release builds have no F1 console. No save-schema change. No normal save used during verification.
+
+Air-photo references informed separated irregular marsh basins, clustered bank reeds, fuller grove crowns and finer meadow grass. No overlapping water/bank bounds, no concentric water patches. Terrain remains cosmetic and walkable. See [DEV_TOOLS_PLAYTEST.md](DEV_TOOLS_PLAYTEST.md) for references and acceptance checks.
+
+Verification: **1265 checks / 17 suites passed**, new **190** additionally native D3D12. Seven native screenshots inspected (three biomes at 0/75%, Test tools). Human style/performance acceptance and a fresh Windows export remain open.
+
 Open `project.godot` in Godot 4.7 and press **F5**. Main scene: `scenes/arena.tscn`. Game UI and code are English.
 
 ## Live Restoration & biome polish — current update (2026-10-21)

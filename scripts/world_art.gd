@@ -2,6 +2,17 @@ extends RefCounted
 
 const WORLD = preload("res://scripts/world_regions.gd")
 const BOUNDS := Rect2(64, 128, 1152, 592)
+# Separate basins with dry margins; water and banks share one shoreline.
+const MARSH_POOLS := [Rect2(130, 194, 310, 170), Rect2(645, 178, 440, 154), Rect2(505, 395, 260, 200), Rect2(135, 515, 235, 125), Rect2(910, 464, 235, 170)]
+
+static func pool_outline(index: int, scale: float = 1.0) -> PackedVector2Array:
+	var basin: Rect2 = MARSH_POOLS[index]
+	var points := PackedVector2Array()
+	for vertex in 29:
+		var angle: float = vertex * TAU / 29
+		var radius: float = 0.76 + sin(angle * 2 + index) * 0.12 + sin(angle * 3 - index) * 0.07 + noise(index * 37 + vertex * 13) * 0.04
+		points.append(basin.get_center() + Vector2(cos(angle), sin(angle)) * basin.size * 0.5 * radius * scale)
+	return points
 
 static func noise(seed: int) -> float:
 	return float(posmod(seed * 73 + seed * seed * 19 + 37, 997)) / 997.0
@@ -41,24 +52,32 @@ static func floor_scene(canvas: CanvasItem, region: int, healing: float) -> void
 				canvas.draw_line(root, root + Vector2(4, -6) * clean, Color(green, clean * 0.45), 1.5, true)
 			if healing >= 0.75 and index % 4 == 0:
 				canvas.draw_circle(at + Vector2(9, -7), 1.8, Color("c4c6a0"))
+	if region == 0:
+		for index in 150:
+			var root := Vector2(85 + noise(index * 29) * 1100, 148 + noise(index * 43) * 550)
+			var growth: float = smoothstep(noise(index * 17) * 0.9, 1.0, healing)
+			canvas.draw_line(root, root + Vector2(3, -5) * growth, Color(Color("6a8160"), 0.35 * growth), 1, true)
 	if region == 2:
-		for index in 8:
-			var at := Vector2(165 + noise(index * 17 + 14) * 920, 205 + noise(index * 31 + 4) * 390)
-			var size := Vector2(90 + noise(index * 7) * 90, 27 + noise(index * 13) * 40)
-			patch(canvas, at + Vector2(0, 5), size + Vector2(10, 6), soil.darkened(0.23), index + 10)
-			patch(canvas, at, size, Color("30383d").lerp(Color("385b61"), healing), index + 10)
-			patch(canvas, at - Vector2(5, 1), size * Vector2(0.72, 0.65), Color("28333c").lerp(Color("3e666a"), healing), index + 10)
-			canvas.draw_line(at + Vector2(-24, -3), at + Vector2(10, -3), Color(0.56, 0.7, 0.69, 0.08 + healing * 0.16), 1.2, true)
-			for reed in 3:
-				var base: Vector2 = at + Vector2(size.x * 0.75 + reed * 4, size.y * 0.3)
-				canvas.draw_line(base, base + Vector2(-3, -12 - reed * 3), Color("505d50").lerp(Color("7c9272"), healing), 1.5, true)
+		for index in MARSH_POOLS.size():
+			var water := Color("30383d").lerp(Color("385b61"), healing)
+			canvas.draw_colored_polygon(pool_outline(index, 1.09), soil.darkened(0.19))
+			canvas.draw_colored_polygon(pool_outline(index), water)
+			var shore: PackedVector2Array = pool_outline(index, 1.08)
+			for reed in range(0, shore.size(), 2):
+				if noise(index * 47 + reed * 5) < 0.35:
+					continue
+				var base: Vector2 = shore[reed]
+				var green := Color("505d50").lerp(Color("7c9272"), healing)
+				canvas.draw_line(base + Vector2(-3, 2), base + Vector2(-6, -9), green, 1.5, true)
+				canvas.draw_line(base, base + Vector2(2, -12), green.lightened(0.04), 1.5, true)
+				canvas.draw_line(base + Vector2(3, 1), base + Vector2(7, -7), green, 1.2, true)
 	else:
 		# Sunken paving is cosmetic; it never changes movement or enemy spawning.
 		for index in 13:
 			var at := Vector2(125 + index * 79, 430 + sin(index * 0.65) * 50 + noise(index * 41) * 18)
 			patch(canvas, at + Vector2(0, 3), Vector2(32, 12), soil.darkened(0.18), index + 300)
 			patch(canvas, at, Vector2(30, 10), stone.darkened(0.2 if region == 1 else 0.1), index + 300)
-	for index in 16:
+	for index in (16 if region == 1 else 8):
 		var at := Vector2(105 + noise(index * 19 + 10) * 1060, (215 if region == 1 else 155) + noise(index * 3) * 20 if index % 2 == 0 else 668 + noise(index * 5) * 22)
 		patch(canvas, at + Vector2(0, 9), Vector2(40, 11), soil.darkened(0.23), index + 110)
 		if region == 1:
@@ -68,8 +87,9 @@ static func floor_scene(canvas: CanvasItem, region: int, healing: float) -> void
 			canvas.draw_line(tip + Vector2(0, 17), tip + Vector2(23, -3), Color("1b242c"), 4, true)
 			var growth: float = smoothstep(0.25, 0.8, healing)
 			if growth > 0:
-				patch(canvas, tip + Vector2(-15, 0), Vector2(32, 20) * growth, Color("304b3c"), index + 240)
-				patch(canvas, tip + Vector2(12, -9), Vector2(30, 23) * growth, Color("3e5e47"), index + 215)
+				patch(canvas, tip + Vector2(-15, 0), Vector2(37, 29) * growth, Color("304b3c"), index + 240)
+				patch(canvas, tip + Vector2(12, -9), Vector2(33, 32) * growth, Color("3e5e47"), index + 215)
+				patch(canvas, tip + Vector2(0, 8), Vector2(25, 23) * growth, Color("42634a"), index + 270)
 		else:
 			patch(canvas, at, Vector2(18 + noise(index) * 12, 10), Color("333842"), index + 200)
 			patch(canvas, at - Vector2(2, 3), Vector2(13, 6), stone, index + 200)

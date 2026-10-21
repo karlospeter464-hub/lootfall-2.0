@@ -65,6 +65,10 @@ func capture() -> void:
 			quit(1)
 			return
 		await create_timer(1.8, true).timeout
+	elif view == "devtools":
+		game.debug_jump_wave(10)
+		game.dev_console.open_console()
+		game.dev_console.tabs.current_tab = game.dev_console.tabs.get_child_count() - 1
 	elif view in ["town", "tree", "sandbox"]:
 		game._show_town()
 		if view == "sandbox":

@@ -89,6 +89,15 @@ func invested() -> int:
 		total += int(price)
 	return total
 
+func debug_set_echoes(amount: int) -> bool:
+	if not OS.is_debug_build() or not available or amount < 0 or amount > MAX_ECHOES - invested():
+		message = "Test wallet unavailable or outside its safe range."
+		return false
+	return _save(amount, best_wave, talents)
+
+func debug_advance(amount: int, reached: int, region: int, total: int, run_id: String) -> bool:
+	return OS.is_debug_build() and _award_expedition(amount, reached, region, total, run_id, false)
+
 func buy(id: String, price: int) -> bool:
 	if not available or price < 1 or price > echoes or not TREE.accessible(id, talents):
 		message = "Purchase unavailable: check Echoes and connected prerequisites."

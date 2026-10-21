@@ -153,7 +153,7 @@ func _ready() -> void:
 	tabs.custom_minimum_size.y = 440
 	column.add_child(tabs)
 	var pages: Dictionary = {}
-	for group in ["Metrics", "Player", "Waves", "Enemies", "Combat & loot", "Rewards & tools", "Skill tree"]:
+	for group in ["Metrics", "Player", "Waves", "Enemies", "Combat & loot", "Rewards & tools", "Skill tree", "Test tools"]:
 		var scroll := ScrollContainer.new()
 		scroll.name = group
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -189,6 +189,7 @@ func _ready() -> void:
 		timing.text = field[7]
 		timing.add_theme_font_size_override("font_size", 13)
 		row.add_child(timing)
+	build_test_tools(pages["Test tools"])
 	invulnerable_box = CheckBox.new()
 	invulnerable_box.text = "Invulnerable (resets on new run)"
 	invulnerable_box.toggled.connect(func(value: bool): game.player.invulnerable = value)
@@ -297,6 +298,70 @@ func _ready() -> void:
 	column.add_child(status)
 	screen.hide()
 
+func build_test_tools(page: VBoxContainer) -> void:
+	var help := Label.new()
+	help.text = "DEBUG ONLY — changes the currently loaded save (normal or sandbox).\nJump starts wave N and credits waves 1..N-1 immediately. Existing build stays.\nNo skipped cards/items. Forward only; start a new run to test earlier waves.\nWallet edits preserve talents and Restoration. Zero does not cancel future run rewards."
+	page.add_child(help)
+	var jump_row := HBoxContainer.new()
+	page.add_child(jump_row)
+	var wave_input := SpinBox.new()
+	wave_input.min_value = 1
+	wave_input.max_value = 100
+	wave_input.value = 5
+	jump_row.add_child(wave_input)
+	var preview := Label.new()
+	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var refresh_preview := func():
+		var cleared: int = int(wave_input.value) - 1
+		preview.text = "Wave %d: through %d cleared; cumulative %d Echoes / %d Restoration (only unpaid difference added)." % [cleared + 1, cleared, game.reward_for_waves(cleared), game.WORLD.reward(cleared, 0, 0, 0)]
+	wave_input.value_changed.connect(func(_value: float): refresh_preview.call())
+	button(jump_row, "Jump + credit progress", func():
+		if game.debug_jump_wave(int(wave_input.value)):
+			open_console()
+			status.text = "Wave %d ready. Echoes and Restoration saved; build kept." % game.wave
+		else:
+			status.text = "Jump failed: choose a later wave within the cap; leave the result screen first. " + game.progress.message)
+	page.add_child(preview)
+	refresh_preview.call()
+	var wallet_row := HBoxContainer.new()
+	page.add_child(wallet_row)
+	var amount := SpinBox.new()
+	amount.min_value = 0
+	amount.max_value = game.progress.MAX_ECHOES
+	amount.value = 1000
+	amount.custom_minimum_size.x = 160
+	wallet_row.add_child(amount)
+	button(wallet_row, "Add Echoes", func(): edit_echoes(game.progress.echoes + int(amount.value)))
+	button(wallet_row, "Set Echoes", func(): edit_echoes(int(amount.value)))
+	button(wallet_row, "Zero Echoes", func(): edit_echoes(0))
+	var actions := HBoxContainer.new()
+	page.add_child(actions)
+	button(actions, "Restore health", heal_player)
+	button(actions, "Finish current wave", func():
+		if game.state != game.State.FIGHTING:
+			status.text = "Resume combat first (including boss introduction)."
+			return
+		for enemy in game.enemies.get_children():
+			game.enemies.remove_child(enemy)
+			enemy.queue_free()
+		game.remaining_to_spawn = 0
+		close_console()
+		game.complete_wave()
+		open_console()
+		status.text = "Wave cleared without kill loot; normal rewards and card choice apply.")
+	var hint := Label.new()
+	hint.text = "Rewards & tools: invulnerability, freeze, any item drop, RNG seed and isolated encounter presets.\nEmberhaven: World Sandbox keeps experimental world progress in a separate save."
+	page.add_child(hint)
+
+func edit_echoes(value: int) -> bool:
+	var ok: bool = game.progress.debug_set_echoes(value)
+	status.text = "Wallet saved: %d Echoes." % game.progress.echoes if ok else game.progress.message
+	game.update_hud()
+	if game.state == game.State.TOWN:
+		game.town_panel.refresh()
+	update_metrics()
+	return ok
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F1 or (is_open and event.keycode == KEY_ESCAPE):
@@ -349,6 +414,7 @@ func update_metrics() -> void:
 	metrics.text = "FPS: %d   |   Frame: %.2f ms   |   Static memory: %.1f MiB\nState: %s   |   Active run time: %.1f s   |   Seed: %d\nWave: %d / %d   |   Cleared: %d   |   Best: %d\nEnemies: %d / %d cap   |   Still to spawn: %d   |   Active enemy HP: %.0f\nKills: %d   |   Projectiles alive: %d   |   Projectiles fired / hit: %d / %d\nDamage dealt: %.1f   |   Average run DPS: %.1f   |   Health lost: %.1f\nPlayer: %.0f / %.0f HP   |   Speed: %.0f   |   Protection left: %.2f s\nFireball: %.1f damage   |   %.3f s interval   |   %d projectiles\nCards: %d total   |   Power / Quick / Fan: %d / %d / %d\nCodex active: %s   |   Items on floor: %d   |   Drops this run: %d\nSplash: %.0f radius / %.0f%% damage   |   Legendary check: %.2f%%\nEchoes: %d saved   |   Current payout: %d   |   Saved progress available: %s" % [Engine.get_frames_per_second(), 1000.0 / maxf(Engine.get_frames_per_second(), 1), OS.get_static_memory_usage() / 1048576.0, game.State.keys()[game.state], game.elapsed, game.rng.seed, game.wave, game.total_waves, game.completed_waves, game.best_wave, game.enemies.get_child_count(), game.enemy_limit, game.remaining_to_spawn, total_hp, game.kills, game.projectiles.get_child_count(), game.shots_fired, game.shots_hit, game.damage_dealt, game.damage_dealt / maxf(game.elapsed, 0.001), game.damage_taken, game.player.health, game.player.max_health, game.player.move_speed, game.player.protection, game.player.damage, game.player.cast_interval, game.player.projectile_count, game.upgrades_chosen, game.power_upgrades, game.quick_upgrades, game.fan_upgrades, str(game.codex_active), game.loot.get_child_count(), game.drops_created, game.explosion_radius, game.explosion_damage_ratio * 100, game.drop_chance * 100, game.progress.echoes, game.predicted_reward(), str(game.progress.available)]
 
 	metrics.text += "\nBag: %d / 8   |   Scepter: %s   |   Book: %s" % [game.bag_used(), game.equipment.scepter, game.equipment.book]
+	metrics.text += "\nDEV prepaid Echoes: %d   |   Save: %s   |   Region Restoration: %.1f%%" % [game.debug_echoes_paid, "SANDBOX" if game.sandbox else ("ISOLATED TEST" if OS.get_cmdline_user_args().has("--test-mode") else "NORMAL"), game.WORLD.fraction(game.progress.world, game.run_region) * 100]
 	metrics.text += "\nEcho attacks: %d/4 (pending %s)   |   Hunter targets: %d   |   Phoenix hits: %d/10, cooldown %.1fs" % [game.echo_attacks, str(not game.pending_echo.is_empty()), game.hunter_marks.size(), game.phoenix_hits, game.phoenix_left]
 	metrics.text += "\nBurst / Pierce / Overcharge: %s / %s / %s   |   Charge: %d/4 %s" % [str(game.mechanic_cards.has(3)), str(game.mechanic_cards.has(4)), str(game.mechanic_cards.has(5)), game.player.overcharge_hits, "READY" if game.player.overcharge_ready else ""]
 	metrics.text += "\nTalents saved / active: %d / %d   |   Echoes invested: %d   |   Second Wind: %.1fs" % [game.progress.talents.size(), game.active_talents.size(), game.progress.invested(), game.player.haste_remaining]
