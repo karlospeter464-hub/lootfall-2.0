@@ -1,5 +1,11 @@
 # Lootfall 2.0 — The Ember Trial
 
+## Current-HP test control (2026-10-21)
+
+F1 → Test tools → **Current HP** → **Set current HP** sets a living run to an exact HP value (1..effective maximum). Over-limit requests clamp to the current effective maximum; invalid/zero values and finished runs are rejected. Works through invulnerability without combat-damage metrics or hit/talent triggers. Restore health still fills HP. Relevant verification: **271 checks in 3 suites passed** (197 developer tools, 54 loot/console, 20 live Restoration); one native console screenshot inspected. No full-suite rerun or new export for this small follow-up.
+
+Landscape redraw timing: saved Restoration after every cleared wave; **1.2 seconds** visual transition, also during card selection. Soil/water colours change continuously; grass patches grow at different thresholds, grove crowns from **25% to 80%**, small flowers at **75%**. Jump tools update the current map immediately. At **100%** the next region unlocks; the current run stays in its original landscape and the next run enters the frontier. Region costs: Fields **600**, Grove **1400**, Marsh **2800** Restoration.
+
 ## Habitat sanity pass & developer test tools (2026-10-21)
 
 F1 → **Test tools** now works in ordinary debug/editor sessions, without `--test-mode`:

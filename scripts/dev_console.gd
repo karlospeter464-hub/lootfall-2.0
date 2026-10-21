@@ -113,6 +113,7 @@ var defaults: Dictionary = {}
 var invulnerable_box: CheckBox
 var freeze_box: CheckBox
 var refresh_clock: float = 0.0
+var health_input: SpinBox
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -334,6 +335,19 @@ func build_test_tools(page: VBoxContainer) -> void:
 	button(wallet_row, "Add Echoes", func(): edit_echoes(game.progress.echoes + int(amount.value)))
 	button(wallet_row, "Set Echoes", func(): edit_echoes(int(amount.value)))
 	button(wallet_row, "Zero Echoes", func(): edit_echoes(0))
+	var health_row := HBoxContainer.new()
+	page.add_child(health_row)
+	var health_label := Label.new()
+	health_label.text = "Current HP (1..effective maximum)"
+	health_row.add_child(health_label)
+	health_input = SpinBox.new()
+	health_input.min_value = 1
+	health_input.max_value = game.player.health_limit
+	health_input.value = game.player.health
+	health_input.custom_minimum_size.x = 130
+	health_row.add_child(health_input)
+	button(health_row, "Set current HP", func():
+		status.text = "Current HP set to %.1f / %.1f." % [game.player.health, game.player.health_limit] if set_current_health(health_input.value) else "Cannot set HP: use a finite value >= 1 during a living run.")
 	var actions := HBoxContainer.new()
 	page.add_child(actions)
 	button(actions, "Restore health", heal_player)
@@ -448,6 +462,7 @@ func apply_setting(key: String, value: Variant) -> bool:
 		var target: Object = game.player if field[1] == "player" else game
 		target.set(field[2], int(value) if target.get(field[2]) is int else float(value))
 		game.update_build()
+		health_input.max_value = game.player.health_limit
 		for pickup in game.loot.get_children():
 			pickup.pickup_radius = game.pickup_radius
 		game.update_hud()
@@ -458,6 +473,8 @@ func apply_setting(key: String, value: Variant) -> bool:
 	return false
 
 func sync_controls() -> void:
+	health_input.max_value = game.player.health_limit
+	health_input.set_value_no_signal(maxf(1, game.player.health))
 	for field in FIELDS:
 		var target: Object = game.player if field[1] == "player" else game
 		controls[field[1] + "." + field[2]].set_value_no_signal(target.get(field[2]))
@@ -536,6 +553,17 @@ func heal_player() -> void:
 		return
 	game.player.health = game.player.health_limit
 	game.player.health_changed.emit(game.player.health, game.player.health_limit)
+
+func set_current_health(value: float) -> bool:
+	if not OS.is_debug_build() or not is_finite(value) or value < 1 or game.player.health <= 0 or game.state in [game.State.FINISHED, game.State.TOWN]:
+		return false
+	game.player.health = minf(value, game.player.health_limit)
+	# A test edit is not an enemy hit and must not inflate damage-taken metrics.
+	game.last_health = game.player.health
+	game.player.health_changed.emit(game.player.health, game.player.health_limit)
+	health_input.max_value = game.player.health_limit
+	health_input.set_value_no_signal(game.player.health)
+	return true
 
 func freeze_enemies(value: bool) -> void:
 	game.enemies_frozen = value

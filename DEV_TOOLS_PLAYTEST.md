@@ -23,3 +23,7 @@ Viewed in the browser, not imported as game assets:
 - Top-down meadow/forest edge: https://images.unsplash.com/photo-1653203217296-5f7e8094cd6b?auto=format&fit=crop&w=1400 (discovered via https://unsplash.com/s/photos/top-down-view) — clustered crowns framing open ground, fine grass texture; adapted while retaining Lootfall's stylized angled characters.
 
 This is stylized, traversable scenery; no water physics, collision or new terrain mechanic. Human visual judgement and dense-run performance remain unverified. Existing Windows ZIP has not been rebuilt.
+
+## Current HP follow-up
+
+F1 → Test tools → Current HP → Set current HP. Set 25 HP, then 1 HP, restore health; invulnerability does not block edits. Capped at effective maximum (including talents); changing maximum health in the Player tab updates the input limit. Invalid/zero values and dead/finished runs rejected. No damage/health-loss talent simulation. 197 tool checks plus 54 console and 20 live checks re-run successfully (271 total); native console screenshot inspected. Full 17-suite run above belongs to the previous package, not this follow-up.

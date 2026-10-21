@@ -43,6 +43,20 @@ func run() -> void:
 	check(game.debug_jump_wave(5), "Town jump creates run and starts boss wave 5")
 	check(game.completed_waves == 4 and game.progress.echoes == 100 and game.progress.world.points[0] == 40, "Skipped clears credit Echoes and Restoration immediately")
 	check(game.state == game.State.BOSS_INTRO and game.wave == 5, "Normal boss intro retained")
+	game.player.invulnerable = true
+	game.player.protection = 1
+	var damage_before: float = game.damage_taken
+	dev.health_input.value = 25
+	for control in dev.screen.find_children("*", "Button", true, false):
+		if control.text == "Set current HP":
+			control.pressed.emit()
+	check(game.player.health == 25 and game.health_bar.value == 25, "HP button sets exact current health and HUD through invulnerability")
+	check(game.damage_taken == damage_before, "HP editing does not count as combat damage")
+	check(dev.set_current_health(100000) and game.player.health == game.player.health_limit, "HP capped at effective maximum")
+	check(not dev.set_current_health(NAN) and not dev.set_current_health(INF) and not dev.set_current_health(0) and not dev.set_current_health(-1), "Invalid HP rejected")
+	check(dev.set_current_health(1), "Low-health state available")
+	dev.heal_player()
+	check(game.player.health == game.player.health_limit, "Restore health still refills player")
 	game.accept_item("swift_scepter")
 	game.equip_item(game.bag.find("swift_scepter"))
 	game.quick_upgrades = 2
@@ -67,6 +81,7 @@ func run() -> void:
 	game.player.health = 0
 	game.finish_run(false)
 	check(game.reward_saved and game.progress.echoes == 0 and game.progress.world.points[0] == 180, "Death never repays skipped Echoes or Restoration after wallet reset")
+	check(not dev.set_current_health(25) and game.player.health == 0, "HP tool cannot revive finished run")
 	game.settle_reward()
 	check(game.progress.echoes == 0, "Repeated result save cannot repay")
 	game.return_to_town()
