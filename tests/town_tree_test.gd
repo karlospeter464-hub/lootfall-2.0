@@ -191,7 +191,7 @@ func run() -> void:
 	loaded.path = legacy_path
 	check(loaded.load_progress() and loaded.echoes == 77 and loaded.talents.is_empty(), "Existing version-one wallets load with no lost Echoes or invented talents")
 	check(SAFE_JSON.read_object(legacy_path).version == 1, "Loading a legacy wallet does not rewrite it")
-	check(loaded.buy("power_1", 30) and SAFE_JSON.read_object(legacy_path).version == 3 and loaded.echoes == 47, "The next successful purchase migrates the wallet atomically")
+	check(loaded.buy("power_1", 30) and SAFE_JSON.read_object(legacy_path).version == 4 and loaded.echoes == 47, "The next successful purchase migrates the wallet atomically")
 	var fixture := {"version": 2, "echoes": 12, "best_wave": 2, "talents": {"power_5": 130}}
 	SAFE_JSON.write_object(legacy_path, fixture)
 	check(not loaded.load_progress() and not loaded.buy("power_1", 1) and not loaded.refund_all(), "Disconnected corrupt talent data blocks purchases and refunds")

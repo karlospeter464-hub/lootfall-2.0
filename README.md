@@ -2,6 +2,14 @@
 
 Open `project.godot` in Godot 4.7 and press **F5**. Main scene: `scenes/arena.tscn`. Game UI and code are English.
 
+## Live Restoration & biome polish — current update (2026-10-21)
+
+Restoration is now credited and saved immediately after **each cleared wave**, with a 1.2-second terrain transition and a live HUD notice. Wave n adds 4*n points; total balance is unchanged. Saved credits persist even if the unfinished run is closed. Echoes still settle only at run end; already credited Restoration is never paid twice. Region completion can happen mid-run, but the current expedition stays in its original biome until it ends. The next run uses the unlocked frontier.
+
+All three maps now share faceted terrain, irregular planted areas and consistent shadows: field paving, grove roots/angular tree crowns and broad marsh pools with shorelines/reeds. Terrain remains decorative. Upgrade selection cards, collision, enemies and the 45-node tree are unchanged.
+
+Progress v4 reads v1–v3 and tracks cumulative live Restoration by run ID. Failed writes show SAVE PENDING and retry; restarting cannot silently discard pending points. **1075 checks / 16 suites passed**; 20 new live-credit checks also passed natively. See [WORLD_RESTORATION_PLAYTEST.md](WORLD_RESTORATION_PLAYTEST.md). No new Windows export or push.
+
 ## World Restoration — current playable version
 
 **Every run makes you stronger. Every run brings the world back to life.** Three frontiers, persistent non-spendable Restoration, per-region wave records and a 45-node permanent skill tree now form the expedition loop. Existing Echoes, purchases and run builds are preserved. Open Godot and press F5; use the town's clearly marked **Restoration sandbox** for isolated fast previews, overflow demonstrations and test Echoes.

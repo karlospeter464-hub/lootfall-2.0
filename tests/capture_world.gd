@@ -24,10 +24,12 @@ func capture() -> void:
 	for index in region:
 		world.points[index] = game.WORLD.REGIONS[index].cost
 	world.points[region] = game.WORLD.REGIONS[region].cost * stage / 100
+	if view in ["live", "live_before"]:
+		world.points[region] = game.WORLD.REGIONS[region].cost / 4 - 4
 	game.progress._save(20000 if view == "tree" else 120, 0, {}, world)
 	game.restart_run()
 	game.run_region = region
-	game.restoration_visual = stage / 100.0
+	game.restoration_visual = game.WORLD.fraction(world, region)
 	game.player.controls_enabled = false
 	game.rng.seed = 42
 	game.wave = 2
@@ -38,7 +40,19 @@ func capture() -> void:
 		enemy.position = Vector2(240 + (index % 4) * 230, 250 + (index / 4) * 270)
 		enemy.set_physics_process(false)
 	game.remaining_to_spawn = 0
-	if view == "complete":
+	if view == "live":
+		for enemy in game.enemies.get_children():
+			game.enemies.remove_child(enemy)
+			enemy.queue_free()
+		game.wave = 1
+		game.completed_waves = 0
+		game.complete_wave()
+		if game.player.health <= 0 or game.progress.restoration_run.credited != 4:
+			push_error("Live capture requires saved wave Restoration before death")
+			quit(1)
+			return
+		await create_timer(1.4, true).timeout
+	elif view == "complete":
 		var near: Dictionary = game.WORLD.fresh()
 		near.points[0] = 590
 		game.progress._save(120, 0, {}, near)
