@@ -18,6 +18,7 @@ static func noise(seed: int) -> float:
 	return float(posmod(seed * 73 + seed * seed * 19 + 37, 997)) / 997.0
 
 static func patch(canvas: CanvasItem, at: Vector2, span: Vector2, tint: Color, seed: int) -> void:
+	if minf(span.x, span.y) < 1: return
 	var points := PackedVector2Array()
 	for vertex in 11:
 		var angle: float = vertex * TAU / 11
@@ -25,7 +26,7 @@ static func patch(canvas: CanvasItem, at: Vector2, span: Vector2, tint: Color, s
 		points.append((at + Vector2(cos(angle), sin(angle)) * span * radius).clamp(BOUNDS.position, BOUNDS.end))
 	canvas.draw_colored_polygon(points, tint)
 
-static func floor_scene(canvas: CanvasItem, region: int, healing: float) -> void:
+static func floor_scene(canvas: CanvasItem, region: int, healing: float, clock: float = 0.0) -> void:
 	var data: Dictionary = WORLD.REGIONS[region]
 	var soil: Color = Color(data.blight).lerp(Color(data.healthy), healing)
 	var stone := Color("41424a").lerp(Color("46534b"), healing)
@@ -33,30 +34,34 @@ static func floor_scene(canvas: CanvasItem, region: int, healing: float) -> void
 	canvas.draw_rect(BOUNDS.grow(10), Color("171d28"))
 	canvas.draw_rect(BOUNDS.grow(6), Color(data.accent).darkened(0.65), false, 1)
 	canvas.draw_rect(BOUNDS, soil.darkened(0.07))
-	# Shared faceted shapes, irregular placement and quiet values keep warnings readable.
-	for index in 24:
-		var at := Vector2(130 + noise(index * 11 + 2) * 1000, 175 + noise(index * 17 + 8) * 490)
-		var threshold: float = 0.08 + noise(index * 23) * 0.84
-		var clean: float = smoothstep(threshold - 0.08, threshold + 0.08, healing)
-		var earth: Color = soil.lightened(0.015 + noise(index) * 0.025)
-		patch(canvas, at, Vector2(90 + noise(index * 3) * 75, 35 + noise(index * 7) * 30), earth, index)
-		patch(canvas, at + Vector2(5, 4), Vector2(63, 23), Color("26322f").lerp(Color("3b5441"), clean).lerp(soil, 0.4), index + 71)
+	# Expanding rooted islands reclaim the ground; plants unfold with the same saved fraction.
+	for index in 44:
+		var at := Vector2(115 + noise(index * 11 + 2) * 1040, 175 + noise(index * 17 + 8) * 490)
+		var clean: float = growth(index, healing)
 		if clean < 1:
-			var crack := PackedVector2Array([at - Vector2(24, 9), at - Vector2(8, 3), at + Vector2(1, 9), at + Vector2(24, 13)])
-			canvas.draw_polyline(crack, Color(Color("171f28"), (1 - clean) * 0.6), 1.5, true)
-		if clean > 0:
-			for blade in 5:
-				var root: Vector2 = at + Vector2(noise(index + blade * 7) * 60 - 30, noise(index + blade * 19) * 20)
-				var green := Color("678568") if region != 2 else Color("668e80")
-				canvas.draw_line(root, root + Vector2(-4, -8 - noise(blade + index) * 8) * clean, Color(green, clean * 0.65), 1.5, true)
-				canvas.draw_line(root, root + Vector2(4, -6) * clean, Color(green, clean * 0.45), 1.5, true)
-			if healing >= 0.75 and index % 4 == 0:
-				canvas.draw_circle(at + Vector2(9, -7), 1.8, Color("c4c6a0"))
+			var crack := PackedVector2Array([at - Vector2(25, 8), at - Vector2(8, 2), at + Vector2(1, 9), at + Vector2(24, 12)])
+			canvas.draw_polyline(crack, Color(Color("171f28"), (1 - clean) * 0.55), 1.5, true)
+		if clean <= 0: continue
+		var spread: float = sqrt(clean)
+		var span := Vector2(85 + noise(index * 3) * 75, 40 + noise(index * 7) * 35) * spread
+		patch(canvas, at, span, soil.lerp(Color("3d6345") if region != 2 else Color("355b4f"), 0.7), index)
+		patch(canvas, at + Vector2(3, -2), span * 0.72, Color("41674a") if region != 2 else Color("406f60"), index + 71)
+		for sprout in 7:
+			var root := at + Vector2(noise(index * 7 + sprout * 13) * 100 - 50, noise(index * 19 + sprout * 23) * 44 - 22) * spread
+			var height: float = (10 + noise(index * 5 + sprout) * 22) * clean
+			var wind: float = sin(clock * 1.25 + index * 0.8 + sprout) * 2.5 * clean
+			plant(canvas, root, height, wind, sprout % 3 == 0, clean * smoothstep(0.4, 0.95, healing))
+		if index % 3 == 0:
+			var bush: Vector2 = at + Vector2(-25, 7)
+			canvas.draw_line(bush, bush + Vector2(0, -24 * clean), Color("263e2e"), 3, true)
+			for branch in 3:
+				var leaf_at: Vector2 = bush + Vector2((branch - 1) * 9, -12 - branch * 5) * clean
+				patch(canvas, leaf_at, Vector2(15, 10) * clean, Color("52794f"), index + branch)
 	if region == 0:
-		for index in 150:
+		for index in 100:
 			var root := Vector2(85 + noise(index * 29) * 1100, 148 + noise(index * 43) * 550)
-			var growth: float = smoothstep(noise(index * 17) * 0.9, 1.0, healing)
-			canvas.draw_line(root, root + Vector2(3, -5) * growth, Color(Color("6a8160"), 0.35 * growth), 1, true)
+			var clean: float = growth(index % 44, healing)
+			if clean > 0: plant(canvas, root, 7 * clean, sin(clock + index) * clean, false, 0)
 	if region == 2:
 		for index in MARSH_POOLS.size():
 			var water := Color("30383d").lerp(Color("385b61"), healing)
@@ -91,8 +96,34 @@ static func floor_scene(canvas: CanvasItem, region: int, healing: float) -> void
 				patch(canvas, tip + Vector2(12, -9), Vector2(33, 32) * growth, Color("3e5e47"), index + 215)
 				patch(canvas, tip + Vector2(0, 8), Vector2(25, 23) * growth, Color("42634a"), index + 270)
 		else:
+			if region == 0 and healing > 0.35:
+				var sapling: float = smoothstep(0.35, 1.0, healing)
+				var tip: Vector2 = at + Vector2(0, -25 * sapling)
+				canvas.draw_line(at, tip, Color("465638"), 3, true)
+				for branch in 3:
+					patch(canvas, tip + Vector2((branch - 1) * 10, branch * 4), Vector2(13, 9) * sapling, Color("6b8a52"), index + branch)
 			patch(canvas, at, Vector2(18 + noise(index) * 12, 10), Color("333842"), index + 200)
 			patch(canvas, at - Vector2(2, 3), Vector2(13, 6), stone, index + 200)
 			if healing > 0.5:
 				patch(canvas, at + Vector2(12, 2), Vector2(14, 5), Color("42604b"), index + 260)
 	canvas.draw_rect(BOUNDS.grow(-3), Color(0.02, 0.03, 0.05, 0.28), false, 6)
+
+static func growth(index: int, healing: float) -> float:
+	var threshold: float = float(index) / 44 * 0.96
+	return smoothstep(threshold, threshold + 0.025, healing)
+
+static func plant(canvas: CanvasItem, root: Vector2, height: float, wind: float, flower: bool, bloom: float) -> void:
+	if height < 2: return
+	var tip: Vector2 = root + Vector2(wind, -height)
+	var middle: Vector2 = root.lerp(tip, 0.55) + Vector2(wind * 0.3, 0)
+	canvas.draw_polyline(PackedVector2Array([root, middle, tip]), Color("75945b"), 1.7, true)
+	for side in [-1, 1]:
+		var at: Vector2 = root.lerp(tip, 0.35 if side == -1 else 0.63)
+		var leaf: Vector2 = at + Vector2(side * height * 0.38, -height * 0.15)
+		canvas.draw_colored_polygon(PackedVector2Array([at, leaf, at + Vector2(side * height * 0.22, height * 0.07)]), Color("98b66c") if side == -1 else Color("658b58"))
+	if flower and bloom > 0:
+		var radius: float = 4.0 * bloom
+		for petal in 5:
+			var direction := Vector2.from_angle(petal * TAU / 5)
+			canvas.draw_circle(tip + direction * radius, radius * 0.8, Color("e4be90"))
+		canvas.draw_circle(tip, radius * 0.65, Color("f3db9a"))

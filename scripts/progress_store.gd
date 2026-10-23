@@ -11,7 +11,9 @@ var talents: Dictionary = {}
 var world: Dictionary = WORLD.fresh()
 var last_settlement: String = ""
 var legacy_source: String = ""
+var living_source: String = ""
 var restoration_run: Dictionary = {"id": "", "region": 0, "credited": 0}
+var echo_run: Dictionary = {"id": "", "earned": 0, "paid": 0}
 var available: bool = true
 var message: String = ""
 
@@ -28,13 +30,15 @@ func load_progress() -> bool:
 		world = WORLD.fresh()
 		last_settlement = ""
 		legacy_source = ""
+		living_source = ""
 		restoration_run = {"id": "", "region": 0, "credited": 0}
+		echo_run = {"id": "", "earned": 0, "paid": 0}
 		return true
 	return _load_from(path)
 
 func _load_from(source: String) -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(source)
-	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4) or not _whole(data.get("echoes"), MAX_ECHOES) or not _whole(data.get("best_wave"), 100):
+	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5) or not _whole(data.get("echoes"), MAX_ECHOES) or not _whole(data.get("best_wave"), 100):
 		return _invalid()
 	var loaded: Variant = {} if data.version == 1 else data.get("talents")
 	if not loaded is Dictionary or loaded.size() > TREE.NODES.size():
@@ -54,13 +58,20 @@ func _load_from(source: String) -> bool:
 	var settlement: Variant = data.get("last_settlement") if data.version >= 3 else ""
 	if not WORLD.valid(loaded_world) or not settlement is String or settlement.length() > 64:
 		return _invalid()
-	var loaded_run: Variant = data.get("restoration_run") if data.version == 4 else {"id": "", "region": 0, "credited": 0}
+	var loaded_run: Variant = data.get("restoration_run") if data.version >= 4 else {"id": "", "region": 0, "credited": 0}
 	if not loaded_run is Dictionary or not loaded_run.get("id") is String or loaded_run.id.length() > 64 or not _whole(loaded_run.get("region"), WORLD.REGIONS.size() - 1) or not _whole(loaded_run.get("credited"), 20200):
 		return _invalid()
 	if loaded_run.id.is_empty() and loaded_run.credited != 0:
 		return _invalid()
+	var loaded_echo: Variant = data.get("echo_run") if data.version >= 5 else {"id": "", "earned": 0, "paid": 0}
+	if not loaded_echo is Dictionary or not loaded_echo.get("id") is String or loaded_echo.id.length() > 64 or not _whole(loaded_echo.get("earned"), MAX_ECHOES) or not _whole(loaded_echo.get("paid"), MAX_ECHOES):
+		return _invalid()
+	if loaded_echo.paid > loaded_echo.earned or (loaded_echo.id.is_empty() and loaded_echo.earned != 0) or loaded_echo.earned - loaded_echo.paid > MAX_ECHOES - int(data.echoes) - refund:
+		return _invalid()
+	echo_run = {"id": loaded_echo.id, "earned": int(loaded_echo.earned), "paid": int(loaded_echo.paid)}
 	restoration_run = {"id": loaded_run.id, "region": int(loaded_run.region), "credited": int(loaded_run.credited)}
 	legacy_source = source if data.version < 3 else ""
+	living_source = source if data.version < 5 else ""
 	world = loaded_world.duplicate(true)
 	for index in WORLD.REGIONS.size():
 		world.points[index] = int(world.points[index])
@@ -88,6 +99,30 @@ func invested() -> int:
 	for price in talents.values():
 		total += int(price)
 	return total
+
+func record_echoes(total: int, id: String) -> bool:
+	if not available or id.is_empty() or id.length() > 64 or id == last_settlement or total < 0 or total > MAX_ECHOES:
+		return false
+	var same: bool = echo_run.id == id
+	if (same and total < echo_run.earned) or (not same and echo_run.earned > echo_run.paid):
+		return false
+	var paid: int = int(echo_run.paid) if same else 0
+	if total - paid > MAX_ECHOES - echoes - invested():
+		message = "Echo storage limit reached. Rewards remain pending."
+		return false
+	if same and total == echo_run.earned:
+		return true
+	return _save(echoes, best_wave, talents, {}, "", {}, {"id": id, "earned": total, "paid": paid})
+
+func claim_echoes(total: int, id: String) -> bool:
+	if not available or id != echo_run.id or total < echo_run.paid or total > echo_run.earned or total - int(echo_run.paid) > MAX_ECHOES - echoes - invested():
+		return false
+	if total == echo_run.paid:
+		return true
+	return _save(echoes + total - int(echo_run.paid), best_wave, talents, {}, "", {}, {"id": id, "earned": int(echo_run.earned), "paid": total})
+
+func recover_echoes() -> bool:
+	return available and (echo_run.earned == echo_run.paid or claim_echoes(int(echo_run.earned), str(echo_run.id)))
 
 func debug_set_echoes(amount: int) -> bool:
 	if not OS.is_debug_build() or not available or amount < 0 or amount > MAX_ECHOES - invested():
@@ -133,11 +168,22 @@ func _award_expedition(amount: int, reached: int, region: int, total: int, run_i
 	var next_run := {"id": run_id, "region": region, "credited": total}
 	return _save(echoes + amount, maxi(best_wave, reached), talents, next, run_id if final else "", next_run)
 
-func _save(next_echoes: int, next_best: int, next_talents: Dictionary, next_world: Dictionary = {}, settlement: String = "", next_run: Dictionary = {}) -> bool:
+func _save(next_echoes: int, next_best: int, next_talents: Dictionary, next_world: Dictionary = {}, settlement: String = "", next_run: Dictionary = {}, next_echo: Dictionary = {}) -> bool:
 	var saved_world: Dictionary = world if next_world.is_empty() else next_world
 	var saved_id: String = last_settlement if settlement.is_empty() else settlement
 	var saved_run: Dictionary = restoration_run if next_run.is_empty() else next_run
-	var data := {"version": 4, "echoes": next_echoes, "best_wave": next_best, "talents": next_talents, "world": saved_world, "last_settlement": saved_id, "restoration_run": saved_run}
+	var saved_echo: Dictionary = echo_run if next_echo.is_empty() else next_echo
+	var reserved: int = int(saved_echo.earned) - int(saved_echo.paid)
+	for price in next_talents.values(): reserved += int(price)
+	if next_echoes < 0 or next_echoes > MAX_ECHOES - reserved:
+		message = "Echo storage limit reached. Pending rewards preserved."
+		return false
+	var data := {"version": 5, "echoes": next_echoes, "best_wave": next_best, "talents": next_talents, "world": saved_world, "last_settlement": saved_id, "restoration_run": saved_run, "echo_run": saved_echo}
+	if not living_source.is_empty() and not FileAccess.file_exists(path + ".pre_living.json"):
+		var original: Dictionary = SAFE_JSON.read_object(living_source)
+		if original.is_empty() or SAFE_JSON.write_object(path + ".pre_living.json", original) != OK:
+			message = "Migration backup could not be saved. Original preserved."
+			return false
 	if not legacy_source.is_empty() and not FileAccess.file_exists(path + ".pre_world.json"):
 		var original: PackedByteArray = FileAccess.get_file_as_bytes(legacy_source)
 		var backup := FileAccess.open(path + ".pre_world.json.tmp", FileAccess.WRITE)
@@ -164,7 +210,9 @@ func _save(next_echoes: int, next_best: int, next_talents: Dictionary, next_worl
 	world = saved_world.duplicate(true)
 	last_settlement = saved_id
 	restoration_run = saved_run.duplicate()
+	echo_run = saved_echo.duplicate()
 	legacy_source = ""
+	living_source = ""
 	message = ""
 	return true
 

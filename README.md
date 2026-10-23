@@ -1,5 +1,7 @@
 # Lootfall 2.0 — The Ember Trial
 
+Local development includes **Game Feel & Living World**: Echo pickups/vacuum, organic Restoration, larger upgrade cards and a living Emberhaven backdrop. See [LIVING_WORLD_PLAYTEST.md](LIVING_WORLD_PLAYTEST.md) for the sandbox demo, changed partial-wave rewards, progress v5 backups and older-build compatibility. The Alpha 0.2 ZIP is unchanged; older sections record earlier milestones.
+
 ## Alpha 0.2 Windows release (2026-10-23)
 
 The latest local World Restoration build is packaged for manual itch.io upload. Three regions, live healing, 45 talents and existing combat/loot/card rules; no gameplay balance change in this release task. Version 0.2.0, same save path/v1-v3 compatibility, F1/sandbox blocked in release. See [WINDOWS_ALPHA_02.md](WINDOWS_ALPHA_02.md) for ZIP, hashes, 1272 source / 868 packed / 8 audit / 110 native QA checks, capture provenance and remaining manual/asset-rights limits. No upload or push performed.

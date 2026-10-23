@@ -40,7 +40,30 @@ func capture() -> void:
 		enemy.position = Vector2(240 + (index % 4) * 230, 250 + (index / 4) * 270)
 		enemy.set_physics_process(false)
 	game.remaining_to_spawn = 0
-	if view == "live":
+	if view in ["cards", "orbs", "rebirth"]:
+		for enemy in game.enemies.get_children():
+			game.enemies.remove_child(enemy)
+			enemy.queue_free()
+		game.wave = 2
+		game.completed_waves = 1
+		if view == "rebirth":
+			world.points[0] = 594
+			game.progress._save(120, 0, {}, world)
+			game.restoration_visual = 0.99
+		game.complete_wave()
+		if view == "orbs":
+			game.overlay.hide()
+			game.feel.reset()
+			game.feel.set_process(false)
+			game.progress.record_echoes(54, game.run_id)
+			game.owed_echo_total = 54
+			for index in 18:
+				game.feel.add_orb(Vector2(200 + index % 6 * 165, 250 + index / 6 * 140), 3)
+		elif view == "cards":
+			game.offered_cards.assign([0, 3, 5])
+			game.refresh_upgrade_cards()
+		await create_timer(1.4, true).timeout
+	elif view == "live":
 		for enemy in game.enemies.get_children():
 			game.enemies.remove_child(enemy)
 			enemy.queue_free()

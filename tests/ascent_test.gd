@@ -83,7 +83,7 @@ func run() -> void:
 			check(game.state == game.State.FIGHTING and game.completed_waves < number, "Dead boss alone cannot finish a wave with pending escorts")
 		await drain_wave()
 		game.complete_wave()
-		check(game.completed_waves == number and game.progress.echoes == 0, "Wave %d completes once without interim currency" % number)
+		check(game.completed_waves == number and game.echo_earned() == game.reward_for_waves(number), "Wave %d completes once with the unchanged cumulative Echo budget" % number)
 		if game.card_wave(number):
 			choices.append(number)
 			check(game.state == game.State.UPGRADE and game.buttons.get_child_count() == 3, "Three random valid mechanics offered after card wave %d" % number)
@@ -100,7 +100,7 @@ func run() -> void:
 	for number in [0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 100]:
 		game.completed_waves = number
 		var expected: int = 10 * number * (number + 1) / 2 if number <= 6 else 210 + (number - 6) * 25 + (number - 6) * (number - 7)
-		check(game.predicted_reward() == expected, "Piecewise Echoes curve at %d" % number)
+		check(game.reward_for_waves(number) == expected, "Piecewise Echoes curve at %d" % number)
 	game.completed_waves = 20
 	game.finish_run(false)
 	check(game.progress.echoes == 742 and game.reward_saved, "Long-run death pays exactly 742 once")

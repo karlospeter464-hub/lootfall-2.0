@@ -76,23 +76,24 @@ func run() -> void:
 	game.enemies.get_child(0).take_damage(10000)
 	await process_frame
 	check(game.loot.get_child_count() == 0, "Zero drop chance suppresses random items")
+	var prior_echoes: int = game.progress.echoes
 	game.completed_waves = 0
-	check(game.predicted_reward() == 0, "Entering a wave alone earns no Echoes")
+	check(game.predicted_reward() + game.echo_paid() == game.echo_earned() and game.echo_earned() > 0, "An unfinished wave keeps its earned kill rewards")
 	game.completed_waves = 3
 	check(game.predicted_reward() == 60, "Cleared wave tiers pay 10 + 20 + 30")
 	game.completed_waves = 6
 	check(game.predicted_reward() == 210, "Pushing to wave six increases the payout")
 	game.completed_waves = 3
 	game.finish_run(false)
-	check(game.reward_saved and game.progress.echoes == 60, "Death pays once based on cleared waves")
+	check(game.reward_saved and game.progress.echoes == prior_echoes + 60, "Death pays once based on cleared waves")
 	game.finish_run(false)
 	game.settle_reward()
-	check(game.progress.echoes == 60, "Repeated finish and save calls cannot duplicate the reward")
+	check(game.progress.echoes == prior_echoes + 60, "Repeated finish and save calls cannot duplicate the reward")
 	var persisted = PROGRESS.new()
 	persisted.path = game.progress.path
-	check(persisted.load_progress() and persisted.echoes == 60, "Echoes survive a fresh progress-store instance")
+	check(persisted.load_progress() and persisted.echoes == prior_echoes + 60, "Echoes survive a fresh progress-store instance")
 	check(persisted.award(5, 4), "A second save replaces the progress file safely")
-	check(SAFE_JSON.read_object(persisted.path + ".bak").get("echoes") == 60, "The previous valid wallet is retained as a backup")
+	check(SAFE_JSON.read_object(persisted.path + ".bak").get("echoes") == prior_echoes + 60, "The previous valid wallet is retained as a backup")
 	var recovered = PROGRESS.new()
 	recovered.path = "user://backup_test_%d.json" % OS.get_process_id()
 	SAFE_JSON.write_object(recovered.path + ".bak", {"version": 1, "echoes": 15, "best_wave": 2})
@@ -100,9 +101,9 @@ func run() -> void:
 	check(recovered.award(5, 3) and FileAccess.file_exists(recovered.path), "A recovered wallet can be saved back to the main file")
 	game.restart_run()
 	game.player.controls_enabled = false
-	check(game.progress.echoes == 60 and game.completed_waves == 0, "A new run retains currency but resets wave credit")
+	check(game.progress.echoes == prior_echoes + 60 and game.completed_waves == 0, "A new run retains currency but resets wave credit")
 	game.settle_reward()
-	check(game.progress.echoes == 60, "A save call during a run cannot pay out")
+	check(game.progress.echoes == prior_echoes + 60, "A save call during a run cannot pay out")
 	var dev = game.dev_console
 	check(dev.controls.size() == 92, "Every supported setting has a console control")
 	var original_speed: float = game.player.move_speed

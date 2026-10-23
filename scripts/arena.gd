@@ -13,6 +13,9 @@ const TALENTS = preload("res://scripts/skill_tree.gd")
 const TOWN_PANEL = preload("res://scripts/town_panel.gd")
 const WORLD = preload("res://scripts/world_regions.gd")
 const WORLD_ART = preload("res://scripts/world_art.gd")
+const GAME_FEEL = preload("res://scripts/game_feel.gd")
+const GAME_SFX = preload("res://scripts/game_sfx.gd")
+const UPGRADE_CARD = preload("res://scripts/upgrade_card.gd")
 const BOUNDS := Rect2(64, 128, 1152, 592)
 const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan", "Ember Burst", "Piercing Flame", "Overcharge"]
 
@@ -148,6 +151,12 @@ var dev_console
 var progress = PROGRESS.new()
 var completed_waves: int = 0
 var debug_echoes_paid: int = 0
+var owed_echo_total: int = 0
+var wave_echo_start: int = 0
+var wave_echo_kills: int = 0
+var feel
+var sfx
+var echo_label: Label
 var codex_active: bool:
 	get: return equipment.book == "cinder_codex"
 var codex_spawned: bool = false
@@ -205,6 +214,8 @@ func _ready() -> void:
 		progress.path = "user://test_progress_%d.json" % OS.get_process_id()
 	normal_progress_path = progress.path
 	progress.load_progress()
+	progress.recover_echoes()
+	get_tree().auto_accept_quit = false
 	best_wave = progress.best_wave
 	rng.randomize()
 	player.arena_bounds = BOUNDS
@@ -227,6 +238,12 @@ func _ready() -> void:
 		dev_console = DEV_CONSOLE.new()
 		dev_console.game = self
 		add_child(dev_console)
+	sfx = GAME_SFX.new()
+	add_child(sfx)
+	feel = GAME_FEEL.new()
+	feel.game = self
+	add_child(feel)
+	move_child(feel, 0)
 	restart_run()
 	_show_town()
 
@@ -279,6 +296,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func restart_run() -> void:
+	if is_instance_valid(feel) and not flush_echoes():
+		show_notice("Echoes not saved — retry before leaving this run. " + progress.message)
+		return
 	if restoration_pending and state != State.FINISHED and not restore_completed_waves():
 		return
 	# Do not silently discard a reward whose write failed.
@@ -311,6 +331,8 @@ func restart_run() -> void:
 	upgrades_chosen = 0
 	completed_waves = 0
 	debug_echoes_paid = 0
+	owed_echo_total = 0
+	feel.reset()
 	codex_spawned = false
 	bag.fill("")
 	equipment = {"scepter": "", "book": ""}
@@ -395,6 +417,8 @@ func begin_wave() -> void:
 		finish_run(true)
 		return
 	wave += 1
+	wave_echo_start = echo_earned()
+	wave_echo_kills = 0
 	emberguard_used = false
 	best_wave = maxi(best_wave, wave)
 	region_session_best[run_region] = best_wave
@@ -623,6 +647,8 @@ func complete_wave() -> void:
 	if state != State.FIGHTING or wave <= completed_waves or remaining_to_spawn > 0 or enemies.get_child_count() > 0:
 		return
 	completed_waves = maxi(completed_waves, wave)
+	secure_echo_total(maxi(owed_echo_total, reward_for_waves(completed_waves) - debug_echoes_paid), player.position + Vector2(70, 0))
+	feel.vacuum()
 	restore_completed_waves()
 	wave_summaries.append({"wave": wave, "boss": boss_title(wave) if is_boss_wave(wave) else "", "seconds": wave_seconds, "damage_taken": maxf(0, damage_taken - wave_damage_start), "roles": wave_roles.duplicate()})
 	if last_healed_wave < wave:
@@ -640,8 +666,18 @@ func complete_wave() -> void:
 		get_tree().paused = true
 		show_overlay("BOSS REWARD — CHOOSE YOUR UPGRADE" if is_boss_wave(wave) else "CHOOSE YOUR UPGRADE", "Wave %d cleared. Pick one change for this run.\nCasting is capped at 0.08 s and fans at 9 projectiles." % wave)
 		refresh_upgrade_cards()
+		if feel.celebration > 3.5:
+			overlay.hide()
+			reveal_restoration_cards(run_id, wave)
 	else:
 		after_wave()
+
+func reveal_restoration_cards(id: String, cleared_wave: int) -> void:
+	# Give the actual growing landscape a moment before covering it with the choice.
+	await get_tree().create_timer(1.8, true).timeout
+	if state == State.UPGRADE and run_id == id and wave == cleared_wave:
+		overlay.show()
+		if buttons.get_child_count() > 0: buttons.get_child(0).grab_focus()
 
 func roll_upgrade_cards() -> void:
 	offered_cards.clear()
@@ -663,10 +699,16 @@ func refresh_upgrade_cards() -> void:
 	for child in buttons.get_children():
 		buttons.remove_child(child)
 		child.queue_free()
-	var details: Array[String] = ["+%.0f%% of base fireball damage" % (upgrade_damage_bonus * 100), "%.0f%% shorter casting interval" % (upgrade_cast_reduction * 100), "+%d projectile(s) per cast" % upgrade_projectiles, "Direct kills explode\n%.0f radius / %.0f%% shot damage\nOnce per run" % [burst_radius, burst_damage_ratio * 100], "Fireballs hit up to two enemies\nOnce per run", "Every 4 direct hits charge\nyour next main shot: +%.0f%%\nOnce per run" % (overcharge_bonus * 100)]
+	var details: Array[String] = ["+%.0f%% of base fireball damage" % (upgrade_damage_bonus * 100), "%.0f%% shorter casting interval" % (upgrade_cast_reduction * 100), "+%d projectile(s) per cast" % upgrade_projectiles, "Kills explode\n%.0f radius / %.0f%% damage\nOnce per run" % [burst_radius, burst_damage_ratio * 100], "Fireballs hit up to two enemies\nOnce per run", "Every fourth direct hit:\nnext main shot +%.0f%%\nOnce per run" % (overcharge_bonus * 100)]
 	for index in offered_cards:
 		if not upgrade_capped(index):
-			add_button(UPGRADE_TITLES[index] + "\n" + details[index], choose_upgrade.bind(index))
+			var card := UPGRADE_CARD.new()
+			card.game = self
+			card.kind = index
+			card.description = details[index]
+			card.text = UPGRADE_TITLES[index] + "\n" + details[index]
+			card.pressed.connect(choose_upgrade.bind(index))
+			buttons.add_child(card)
 	if buttons.get_child_count() > 0:
 		buttons.get_child(0).grab_focus()
 	else:
@@ -688,6 +730,8 @@ func after_wave() -> void:
 func choose_upgrade(index: int) -> void:
 	if state != State.UPGRADE or not offered_cards.has(index) or upgrade_capped(index):
 		return
+	sfx.cue("card")
+	feel.confirm_card(index)
 	match index:
 		0: power_upgrades += 1
 		1: quick_upgrades += 1
@@ -735,7 +779,7 @@ func finish_run(victory: bool) -> void:
 	settle_reward()
 
 func predicted_reward() -> int:
-	return maxi(0, reward_for_waves(completed_waves) - debug_echoes_paid)
+	return maxi(0, maxi(reward_for_waves(completed_waves) - debug_echoes_paid, owed_echo_total) - echo_paid())
 
 func reward_for_waves(cleared: int) -> int:
 	var early: int = clampi(cleared, 0, 6)
@@ -749,7 +793,8 @@ func debug_jump_wave(number: int) -> bool:
 		restart_run()
 	if number <= wave or number - 1 < completed_waves:
 		return false
-	var prepaid: int = maxi(debug_echoes_paid, reward_for_waves(number - 1))
+	if not flush_echoes(): return false
+	var prepaid: int = maxi(debug_echoes_paid, reward_for_waves(number - 1) - echo_paid())
 	var before: int = WORLD.restored(progress.world)
 	if not progress.debug_advance(prepaid - debug_echoes_paid, number - 1, run_region, WORLD.reward(number - 1, 0, 0, 0), run_id):
 		return false
@@ -783,28 +828,35 @@ func settle_reward() -> void:
 		return
 	if not progress.available:
 		progress.load_progress()
+	if not flush_echoes():
+		show_overlay("SAVE PENDING", progress.message)
+		add_button("Retry saving reward", settle_reward)
+		return
+	reward_due = predicted_reward()
 	var before: int = WORLD.restored(progress.world)
 	reward_saved = progress.settle_expedition(reward_due, wave, run_region, restoration_due, run_id)
 	if reward_saved:
 		restoration_pending = false
+		if WORLD.restored(progress.world) > before: feel.grow(true)
 		newly_restored += WORLD.restored(progress.world) - before
 		if is_instance_valid(restoration_tween):
 			restoration_tween.kill()
 		restoration_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 		restoration_tween.tween_method(func(value: float): restoration_visual = value; queue_redraw(), restoration_visual, WORLD.fraction(progress.world, run_region), 1.5)
 	show_overlay("PROTOTYPE LIMIT REACHED" if result_victory else "THE FLAME FADES", "Technical safety stop. This is not a victory." if result_victory else "Every attempt teaches you something.")
-	overlay_text.text += "\nWave %d / %d   |   %d cleared   |   %d defeats   |   Best %d\nEchoes earned: %d   |   Total: %d\n%s" % [wave, total_waves, completed_waves, kills, best_wave, reward_due, progress.echoes, "Reward saved. Run items reset on your next attempt." if reward_saved else progress.message]
+	overlay_text.text += "\nWave %d / %d   |   %d cleared   |   %d defeats   |   Best %d\nEchoes earned: %d   |   Total: %d\n%s" % [wave, total_waves, completed_waves, kills, best_wave, echo_paid() + debug_echoes_paid + reward_due, progress.echoes, "Reward saved. Run items reset on your next attempt." if reward_saved else progress.message]
 	overlay_text.text += "\nRun time (including choices / pauses): %.1fs   |   Active: %.1fs" % [run_wall_seconds(), elapsed]
 	overlay_text.text += "\n%s  /  %d Restoration earned this run (includes live credits)  /  %.0f%% healed" % [WORLD.REGIONS[run_region].name, restoration_due, WORLD.fraction(progress.world, run_region) * 100]
 	if newly_restored > 0:
 		overlay_title.text = "LIFE RETURNS"
 		overlay_title.add_theme_color_override("font_color", Color("afe0b9"))
-		overlay_text.text = "%s is restored. %s\n%d Restoration earned this run  /  +%d Echoes  /  %d regions restored\n%s" % [WORLD.REGIONS[run_region].name, WORLD.REGIONS[run_region].mood, restoration_due, reward_due, WORLD.restored(progress.world), "Discover " + WORLD.REGIONS[WORLD.frontier(progress.world)].name + " — your next expedition begins at local Wave 1. Overflow was carried forward." if WORLD.restored(progress.world) < 3 else "All three regions healed. Your ascent continues; surplus Restoration is preserved."]
+		overlay_text.text = "%s is restored. %s\n%d Restoration earned this run  /  +%d Echoes  /  %d regions restored\n%s" % [WORLD.REGIONS[run_region].name, WORLD.REGIONS[run_region].mood, restoration_due, echo_paid() + debug_echoes_paid + reward_due, WORLD.restored(progress.world), "Discover " + WORLD.REGIONS[WORLD.frontier(progress.world)].name + " — your next expedition begins at local Wave 1. Overflow was carried forward." if WORLD.restored(progress.world) < 3 else "All three regions healed. Your ascent continues; surplus Restoration is preserved."]
 		overlay.position.y = 140
 		overlay.size.y = 270
 		overlay_shade.color.a = 0.12
 	if debug_echoes_paid > 0:
 		overlay_text.text += "\nDEV: %d Echoes already paid by jumps; %d remaining payout." % [debug_echoes_paid, reward_due]
+	overlay_text.text += "\nEchoes secured during run: %d  /  final difference: %d" % [echo_paid() + debug_echoes_paid, reward_due]
 	if reward_saved:
 		add_button("Return to Town", return_to_town)
 	else:
@@ -973,6 +1025,11 @@ func destroy_bag_item(index: int) -> bool:
 
 func enemy_slain(at: Vector2) -> void:
 	kills += 1
+	if state == State.FIGHTING and wave > 0:
+		wave_echo_kills += 1
+		var budget: int = reward_for_waves(wave) - reward_for_waves(wave - 1)
+		var earned: int = wave_echo_start + budget * mini(wave_echo_kills, wave_budget) / maxi(1, wave_budget)
+		secure_echo_total(maxi(owed_echo_total, earned), at)
 	if state == State.FIGHTING and player.health > 0 and active_talents.has("power_1"):
 		player.kindling_remaining = tree_kindling_duration
 	if loot.get_child_count() >= ground_loot_limit or state != State.FIGHTING or (rng.randf() >= equipment_drop_chance and equipment_drop_chance < 1.0):
@@ -1129,6 +1186,8 @@ func update_hud() -> void:
 	cards_label.text = " / ".join(names)
 	if player.overcharge_enabled:
 		cards_label.text += "   [READY]" if player.overcharge_ready else "   [%d/4 hits]" % player.overcharge_hits
+	if is_instance_valid(echo_label):
+		echo_label.text = "RUN ECHOES  +%d%s" % [echo_paid(), " / SAVE PENDING" if is_instance_valid(feel) and feel.save_pending else ""]
 	wallet_label.text = "%s  /  %.1f%% healed  /  ECHOES %d (+%d)%s" % [WORLD.REGIONS[run_region].name, WORLD.fraction(progress.world, run_region) * 100, progress.echoes, predicted_reward(), "  /  SAVE PENDING" if restoration_pending else ""]
 	var scepter_name: String = "Empty" if equipment.scepter.is_empty() else CATALOG.ITEMS[equipment.scepter].name
 	var book_name: String = "Empty" if equipment.book.is_empty() else CATALOG.ITEMS[equipment.book].name
@@ -1168,6 +1227,7 @@ func create_interface() -> void:
 	add_label(ui, "RECLAIM LIFE   /   THE RESTORATION EXPEDITION", Vector2(65, 66), 13, Color("9da6b3"))
 	hud = add_label(ui, "", Vector2(580, 53), 17, Color("e9ddc7"))
 	wallet_label = add_label(ui, "", Vector2(580, 80), 14, Color("ccac7b"))
+	echo_label = add_label(ui, "", Vector2(920, 99), 14, Color("f2cf86"))
 	loot_label = add_label(ui, "", Vector2(65, 99), 13, Color("d6b67b"))
 	notice_label = add_label(ui, "", Vector2(80, 685), 15, Color("f0d39f"))
 	health_label = add_label(ui, "", Vector2(65, 742), 15, Color("e9ddc7"))
@@ -1239,8 +1299,8 @@ func show_overlay(title: String, text: String) -> void:
 		buttons.remove_child(child)
 		child.queue_free()
 	overlay_shade.color.a = 0.25 if state in [State.FINISHED, State.UPGRADE] else 0.88
-	overlay.position.y = 175 if state == State.FINISHED else 255
-	overlay.size.y = 450 if state == State.FINISHED else 290
+	overlay.position.y = 175 if state == State.FINISHED else (190 if state == State.UPGRADE else 255)
+	overlay.size.y = 450 if state == State.FINISHED else (430 if state == State.UPGRADE else 290)
 	overlay_title.text = title
 	overlay_title.add_theme_color_override("font_color", Color("ffc38f") if state == State.BOSS_INTRO else Color("e9ddc7"))
 	overlay_title.add_theme_font_size_override("font_size", 34 if state == State.BOSS_INTRO else 28)
@@ -1298,7 +1358,7 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, point + Vector2(24, -25 - (1 - alpha) * 25), str(snappedf(effect.amount, 0.1)), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
 
 func draw_floor() -> void:
-	WORLD_ART.floor_scene(self, run_region, restoration_visual)
+	WORLD_ART.floor_scene(self, run_region, restoration_visual, feel.clock if is_instance_valid(feel) else 0.0)
 
 func talent_direct_damage(target: Object, amount: float, context: Dictionary) -> float:
 	var value: float = hunter_damage(target, amount, context)
@@ -1353,6 +1413,7 @@ func restore_completed_waves() -> bool:
 	restoration_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	restoration_tween.tween_method(func(value: float): restoration_visual = value; queue_redraw(), restoration_visual, WORLD.fraction(progress.world, run_region), 1.2)
 	var completed: int = WORLD.restored(progress.world) - before
+	if is_instance_valid(feel): feel.grow(completed > 0)
 	newly_restored += completed
 	var message: String = "+%d Restoration — %.1f%% of %s healed" % [4 * completed_waves, WORLD.fraction(progress.world, run_region) * 100, WORLD.REGIONS[run_region].name]
 	if completed > 0:
@@ -1360,3 +1421,38 @@ func restore_completed_waves() -> bool:
 	show_notice(message)
 	update_hud()
 	return true
+
+func echo_earned() -> int:
+	return int(progress.echo_run.earned) if progress.echo_run.id == run_id else 0
+
+func echo_paid() -> int:
+	return int(progress.echo_run.paid) if progress.echo_run.id == run_id else 0
+
+func secure_echo_total(total: int, at: Vector2) -> bool:
+	owed_echo_total = maxi(owed_echo_total, total)
+	var old: int = echo_earned()
+	if total <= old: return true
+	if not progress.record_echoes(total, run_id):
+		feel.save_pending = true
+		feel.retry = 1.0
+		show_notice("ECHO SAVE PENDING — rewards retained for retry. " + progress.message)
+		return false
+	feel.save_pending = false
+	feel.add_orb(at, total - old)
+	return true
+
+func flush_echoes() -> bool:
+	if owed_echo_total > echo_earned() and not secure_echo_total(owed_echo_total, player.position): return false
+	if not progress.recover_echoes(): return false
+	if is_instance_valid(feel): feel.reset()
+	return true
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_instance_valid(feel):
+		if not flush_echoes() or (restoration_pending and not restore_completed_waves()):
+			show_notice("SAVE PENDING — could not close safely. Retry when storage is available.")
+			return
+		if state == State.FINISHED and not reward_saved:
+			settle_reward()
+			if not reward_saved: return
+		get_tree().quit()

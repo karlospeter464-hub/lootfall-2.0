@@ -2,6 +2,7 @@ extends CanvasLayer
 
 const WORLD = preload("res://scripts/world_regions.gd")
 const WORLD_ART = preload("res://scripts/world_art.gd")
+const HUB_ART = preload("res://scripts/emberhaven_art.gd")
 const TREE = preload("res://scripts/skill_tree.gd")
 var game
 var screen: Control
@@ -25,27 +26,39 @@ var tree_scroll: ScrollContainer
 var region_cards: Array[RegionCard] = []
 var sandbox_button: Button
 var sandbox_tools: HBoxContainer
+var hub
 var map: Connections
 
 class RegionCard extends Control:
 	var region: int = 0
 	var world: Dictionary
+	var clock: float = 0
 	func _draw() -> void:
 		if world.is_empty():
 			return
 		var unlocked: bool = region <= WORLD.frontier(world)
-		draw_set_transform(Vector2(0, 27), 0, Vector2(0.29, 0.13))
-		WORLD_ART.floor_scene(self, region, WORLD.fraction(world, region) if unlocked else 0)
+		var restored: bool = WORLD.fraction(world, region) == 1
+		var accent := Color(WORLD.REGIONS[region].accent)
+		var frame := StyleBoxFlat.new()
+		frame.bg_color = Color("182b30") if restored else Color("162333")
+		frame.border_color = accent if unlocked else Color("354052")
+		frame.set_border_width_all(2)
+		frame.set_corner_radius_all(9)
+		draw_style_box(frame, Rect2(Vector2.ZERO,size))
+		draw_set_transform(Vector2(0, 22), 0, Vector2(0.29, 0.13))
+		WORLD_ART.floor_scene(self, region, WORLD.fraction(world, region) if unlocked else 0, clock)
 		draw_set_transform(Vector2.ZERO)
 		if not unlocked:
-			draw_rect(Rect2(0, 27, 371, 104), Color(0.03, 0.04, 0.07, 0.75))
-		draw_string(ThemeDB.fallback_font, Vector2(10, 19), "%d  /  %s" % [region + 1, WORLD.REGIONS[region].name], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("efd2a2"))
-		var text: String = "LOCKED — restore the previous region"
-		if unlocked:
-			text = "%s  /  %.0f%%  /  Best Wave %d" % ["RESTORED" if WORLD.fraction(world, region) == 1 else "FRONTIER", WORLD.fraction(world, region) * 100, world.best[region]]
-		draw_string(ThemeDB.fallback_font, Vector2(10, 151), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("c5d5ce"))
-		draw_rect(Rect2(10, 163, 350, 4), Color("263342"))
-		draw_rect(Rect2(10, 163, 350 * WORLD.fraction(world, region), 4), Color("92c6a1"))
+			draw_rect(Rect2(0, 27, 371, 104), Color(0.03, 0.04, 0.07, 0.77))
+			draw_arc(Vector2(185,68),9,PI,TAU,16,Color("84929b"),3,true)
+			draw_rect(Rect2(174,68,22,17), Color("84929b"))
+		draw_string(ThemeDB.fallback_font, Vector2(12, 20), "%d  /  %s" % [region + 1, WORLD.REGIONS[region].name], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, accent if unlocked else Color("82909c"))
+		var status_text: String = "LOCKED — heal the previous region"
+		if unlocked: status_text = "LIFE RESTORED" if restored else "YOUR NEXT EXPEDITION"
+		draw_string(ThemeDB.fallback_font, Vector2(12, 132), status_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, accent if unlocked else Color("82909c"))
+		draw_string(ThemeDB.fallback_font, Vector2(12, 153), "Healed %.1f%%     /     Best Wave %d" % [WORLD.fraction(world, region) * 100, world.best[region]], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("c5d5ce"))
+		draw_rect(Rect2(12, 163, 346, 4), Color("263342"))
+		draw_rect(Rect2(12, 163, 346 * WORLD.fraction(world, region), 4), accent)
 
 class Connections extends Control:
 	var buttons: Dictionary
@@ -73,6 +86,16 @@ func _ready() -> void:
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.color = Color("101b29")
 	screen.add_child(shade)
+	hub = HUB_ART.new()
+	screen.add_child(hub)
+	var sound := Button.new()
+	sound.position = Vector2(1090, 32)
+	sound.size = Vector2(135, 35)
+	sound.text = "Sound: On"
+	sound.pressed.connect(func():
+		game.sfx.muted = not game.sfx.muted
+		sound.text = "Sound: Off" if game.sfx.muted else "Sound: On")
+	screen.add_child(sound)
 	label(screen, "L O O T F A L L  /  EMBERHAVEN", Vector2(55, 30), Vector2(950, 40), 30, Color("efd2a2"))
 	wallet = label(screen, "", Vector2(55, 80), Vector2(1160, 32), 18)
 	city = VBoxContainer.new()
@@ -311,3 +334,12 @@ func button(parent: Node, text: String, action: Callable) -> Button:
 	control.pressed.connect(action)
 	parent.add_child(control)
 	return control
+
+func animate_world(clock: float) -> void:
+	if not screen.visible: return
+	hub.clock = clock
+	hub.restoration = (WORLD.fraction(game.progress.world, 0) + WORLD.fraction(game.progress.world, 1) + WORLD.fraction(game.progress.world, 2)) / 3
+	hub.queue_redraw()
+	for card in region_cards:
+		card.clock = clock
+		card.queue_redraw()
