@@ -39,16 +39,20 @@ func _initialize() -> void:
 	FileAccess.open(report.path_join("pack-files.txt"), FileAccess.WRITE).store_string("\n".join(files))
 	check(not files.any(func(path): return path.begins_with("res://tests/") or path.begins_with("res://addons/") or path.contains(".godot/editor/") or path.contains("shader_cache/") or path.contains(".codex") or path.contains(".mcp.json") or path.contains("progress.json") or path.contains("balance_profile") or path.ends_with(".md")), "No tests, MCP addon, personal config, saves, editor caches or developer documents in PCK")
 	check(ResourceLoader.exists("res://scenes/arena.tscn") and ResourceLoader.exists("res://scripts/item_catalog.gd"), "Main scene and item resources resolve from exported PCK")
+	var world = load("res://scripts/world_regions.gd")
+	var tree = load("res://scripts/skill_tree.gd")
+	check(world.REGIONS.size() == 3 and tree.NODES.size() == 45, "Current three-region world and 45-node tree exported")
 	var config := FileAccess.open("res://project.binary", FileAccess.READ)
 	check(config != null and config.get_buffer(4).get_string_from_ascii() == "ECFG", "Exported binary project settings are valid")
 	var settings: Dictionary = {}
 	for index in config.get_32():
 		var key: String = config.get_buffer(config.get_32()).get_string_from_utf8()
 		var value: PackedByteArray = config.get_buffer(config.get_32())
-		if key in ["autoload/MCPRuntimeServer", "application/run/main_scene"]:
+		if key in ["autoload/MCPRuntimeServer", "application/run/main_scene", "application/config/version"]:
 			settings[key] = bytes_to_var(value)
 	check(not settings.get("autoload/MCPRuntimeServer", false), "MCP runtime autoload absent from exported settings")
 	check(str(settings.get("application/run/main_scene", "")) == "res://scenes/arena.tscn", "Exported entry point is the real game")
+	check(settings.get("application/config/version") == "0.2.0", "Alpha 0.2 release metadata exported")
 	FileAccess.open(report.path_join("GODOT_LICENSES.txt"), FileAccess.WRITE).store_string(Engine.get_license_text() + "\n\nBundled third-party copyright notices:\n" + JSON.stringify(Engine.get_copyright_info(), "  ") + "\n\nLicense texts:\n" + JSON.stringify(Engine.get_license_info(), "  "))
 	print("EXPORT AUDIT: %d checks, %d failures" % [checks, failures])
 	quit(0 if failures == 0 else 1)

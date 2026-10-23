@@ -1,5 +1,7 @@
 # First external playtest — Windows v0.1
 
+Historical package. Current Alpha 0.2 release: [WINDOWS_ALPHA_02.md](WINDOWS_ALPHA_02.md).
+
 Gameplay remains the CE5 checkpoint **00e378d**. Feature freeze: no gameplay, balance, progression or save-format changes. Local source tags `playtest-v0.1-source-2026-10-19` mark both repositories before packaging. No upload, distribution, GitHub push or storefront deployment.
 
 ## Deliverable

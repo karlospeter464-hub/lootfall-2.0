@@ -1,5 +1,9 @@
 # Lootfall 2.0 — The Ember Trial
 
+## Alpha 0.2 Windows release (2026-10-23)
+
+The latest local World Restoration build is packaged for manual itch.io upload. Three regions, live healing, 45 talents and existing combat/loot/card rules; no gameplay balance change in this release task. Version 0.2.0, same save path/v1-v3 compatibility, F1/sandbox blocked in release. See [WINDOWS_ALPHA_02.md](WINDOWS_ALPHA_02.md) for ZIP, hashes, 1272 source / 868 packed / 8 audit / 110 native QA checks, capture provenance and remaining manual/asset-rights limits. No upload or push performed.
+
 ## Current-HP test control (2026-10-21)
 
 F1 → Test tools → **Current HP** → **Set current HP** sets a living run to an exact HP value (1..effective maximum). Over-limit requests clamp to the current effective maximum; invalid/zero values and finished runs are rejected. Works through invulnerability without combat-damage metrics or hit/talent triggers. Restore health still fills HP. Relevant verification: **271 checks in 3 suites passed** (197 developer tools, 54 loot/console, 20 live Restoration); one native console screenshot inspected. No full-suite rerun or new export for this small follow-up.
