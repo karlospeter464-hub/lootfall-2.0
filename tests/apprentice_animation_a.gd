@@ -12,14 +12,14 @@ var used_rect: Rect2i
 func setup(actor: CharacterBody2D) -> void:
 	player = actor
 	art = player.artwork
-	source_image = Image.load_from_file("res://tests/fixtures/apprentice_method_a_reference.png")
+	source_image = Image.load_from_file("res://tests/fixtures/lootfall_apprentice_runtime_candidate_v01.png")
 	assert(source_image != null and not source_image.is_empty(), "Prototype PNG must load")
 	used_rect = source_image.get_used_rect()
 	source_image.generate_mipmaps()
 	art.texture = ImageTexture.create_from_image(source_image)
 	art.centered = false
-	# Temporary measured foot point for this illustration, not a final sprite contract.
-	art.offset = Vector2(-590, -1410)
+	# Supplied 256x320 candidate: preserve its declared foot-contact point.
+	art.offset = Vector2(-128, -300)
 	player.artwork_base_scale = Vector2.ONE * (64.0 / used_rect.size.y)
 	art.scale = player.artwork_base_scale
 	art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
