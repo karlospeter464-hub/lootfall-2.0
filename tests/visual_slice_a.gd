@@ -104,9 +104,86 @@ func capture_live_combat(game, visual) -> void:
 	print("LIVE COMBAT: ", report)
 	print("CANDIDATE FINAL: %d checks, %d failures" % [checks, failures])
 
+func capture_polish_clip(game, visual) -> void:
+	var player = game.player
+	var label := Label.new()
+	label.position = Vector2(960, 22)
+	label.add_theme_font_size_override("font_size", 18)
+	game.add_child(label)
+	var target = null
+	for enemy in game.enemies.get_children():
+		if enemy.get_script() == game.GUARDIAN_ENEMY: target = enemy
+	var start: Vector2 = player.position
+	var seen_prepare: bool = false
+	var seen_cast: bool = false
+	var seen_move: bool = false
+	var minimum_enemies: int = 12
+	visual.set_mode(1)
+	label.text = "v01 · ORIGINAL"
+	for frame in 468:
+		if frame == 72:
+			visual.set_mode(2)
+			label.text = "v01 · A+ IDLE"
+		if frame == 156:
+			visual.set_mode(0)
+			label.text = "PROCEDURAL"
+		if frame == 204:
+			visual.set_mode(2)
+			label.text = "v01 · A+ COMBAT"
+			for enemy in game.enemies.get_children():
+				enemy.set_physics_process(true)
+				enemy.set_process(true)
+			player.controls_enabled = true
+			player.set_physics_process(true)
+			game.set_process(true)
+			visual.cast_intent = true
+			Input.action_press("move_up")
+		if frame == 252:
+			Input.action_release("move_up")
+			Input.action_press("move_left")
+		if frame == 300:
+			Input.action_release("move_left")
+			Input.action_press("move_down")
+		if frame == 348:
+			Input.action_release("move_down")
+			Input.action_press("move_right")
+		if frame == 396: Input.action_release("move_right")
+		if frame == 408:
+			visual.cast_intent = false
+			player.controls_enabled = false
+			player.velocity = Vector2.ZERO
+			game.set_process(false)
+			for enemy in game.enemies.get_children():
+				enemy.set_physics_process(false)
+				enemy.set_process(false)
+			label.text = "v01 · A+ RETURN"
+		await physics_frame
+		if frame >= 204 and frame < 408 and is_instance_valid(target) and not target.dead:
+			player.aim = player.global_position.direction_to(target.global_position)
+			player.attack(player.aim)
+			minimum_enemies = mini(minimum_enemies, game.enemies.get_child_count())
+		visual._process(0)
+		seen_prepare = seen_prepare or visual.animator.current_animation == "prepare"
+		seen_cast = seen_cast or visual.animator.current_animation == "cast"
+		seen_move = seen_move or visual.animator.current_animation == "move"
+		if DisplayServer.get_name() != "headless":
+			if frame == 48: await capture("original_idle")
+			if frame == 120: await capture("aplus_idle")
+			if frame == 190: await capture("procedural")
+			if frame == 230: await capture("aplus_combat")
+	for action in ["move_up", "move_left", "move_down", "move_right"]: Input.action_release(action)
+	check(minimum_enemies >= 12, "A+ gameplay includes twelve active enemies")
+	check(game.shots_fired >= 5 and game.shots_hit > 0, "A+ clip includes multiple real casts and collisions")
+	check(seen_prepare and seen_cast and seen_move, "A+ clip includes preparation, recoil and directional movement")
+	check(player.get_node("CollisionShape2D").shape.radius == 15 and player.move_speed == 245 and player.damage == 14 and player.cast_interval == 0.36, "Clip preserves body and gameplay values")
+	var report := {"physics_frames":468, "combat_physics_frames":204, "minimum_active_enemies":minimum_enemies, "shots_fired":game.shots_fired, "shots_hit":game.shots_hit, "actual_damage":game.damage_dealt, "health_end":player.health, "initial_position":str(start), "final_position":str(player.position), "prepare_seen":seen_prepare, "cast_seen":seen_cast, "move_seen":seen_move, "checks":checks, "failures":failures, "comparison":"Original v01 / A+ / procedural; AI frozen only during comparison and ending; active during combat", "source_png_unchanged":true}
+	var file := FileAccess.open(output + "/polish_metrics.json", FileAccess.WRITE)
+	if file: file.store_string(JSON.stringify(report, "\t"))
+	print("A+ CLIP: ", report)
+
 func run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output))
-	if DisplayServer.get_name() != "headless": await measure_sprite()
+	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().has("--polish-clip"): await measure_sprite()
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
@@ -140,7 +217,14 @@ func run() -> void:
 	var visual = VISUAL.new()
 	player.add_child(visual)
 	visual.setup(player)
+	if OS.get_cmdline_user_args().has("--polish-clip"):
+		await capture_polish_clip(game, visual)
+		game.queue_free()
+		await process_frame
+		quit(0 if failures == 0 else 1)
+		return
 	visual.set_process(false)
+	check(FileAccess.get_sha256("res://tests/fixtures/lootfall_apprentice_runtime_candidate_v01.png") == "831023c026176d2949e3e8a085148ea1cb79d72d1684a0b7977fbbead3053128", "Original v01 pixels remain the byte-identical backup")
 	check(visual.source_image.get_size() == Vector2i(256, 320), "Candidate uses declared 256x320 canvas")
 	check(visual.source_image.detect_alpha() == Image.ALPHA_BLEND, "PNG has real partial-alpha edges")
 	check(visual.source_image.get_pixel(0, 0).a == 0, "PNG corner is transparent")
@@ -162,12 +246,14 @@ func run() -> void:
 	player.attack(Vector2.RIGHT)
 	visual._process(0)
 	check(visual.animator.current_animation == "cast" and casts.size() == 1, "Real accepted attack selects cast")
+	check(visual.shot_point.is_equal_approx(casts[0][0]), "Energy pulse uses the actual world-space projectile origin")
 	check(casts[0][0].is_equal_approx(player.global_position + Vector2.RIGHT * 25) and casts[0][2] == 14, "Projectile origin/damage preserved")
 	player.attack(Vector2.RIGHT)
 	check(casts.size() == 1, "Animation never bypasses attack cooldown")
 	visual.animator.seek(0.06, true)
 	if automate and DisplayServer.get_name() != "headless": await capture("prototype_cast")
 	player.cast_flash = 0
+	visual.shot_age = 10.0
 	player.velocity = Vector2.RIGHT * player.move_speed
 	visual._process(0)
 	check(visual.animator.current_animation == "move", "Existing velocity selects movement")
@@ -195,6 +281,35 @@ func run() -> void:
 	check(visual.motion.transform == transform, "Pause freezes AnimationPlayer")
 	paused = false
 	check(game.rng.state == rng_state, "Visual animation never consumes gameplay RNG")
+	var key := InputEventKey.new()
+	key.keycode = KEY_V
+	key.pressed = true
+	visual._unhandled_key_input(key)
+	check(visual.mode == 1 and visual.art.material == null, "V selects untouched original-v01 rendering")
+	visual._unhandled_key_input(key)
+	check(visual.mode == 0 and not visual.art.visible, "V selects procedural fallback")
+	visual._unhandled_key_input(key)
+	check(visual.mode == 2 and visual.art.visible, "V returns to A+")
+	for state in ["idle", "move", "prepare", "cast"]:
+		visual.animator.play(state)
+		visual.animator.seek(visual.animator.get_animation(state).length / 2, true)
+		check(visual.motion.position == Vector2.ZERO and visual.art.to_global(Vector2(128, 300) + visual.art.offset).is_equal_approx(player.global_position), state + " preserves foot anchor without bouncing")
+	player.cooldown = 0.06
+	visual.cast_intent = true
+	visual.shot_age = 1.0
+	visual._process(0.02)
+	check(visual.animator.current_animation == "prepare" and is_equal_approx(player.cooldown, 0.06), "Preparation reads cooldown and never delays it")
+	visual.cast_intent = false
+	var gain: float = visual.fire_gain
+	visual._process(0.05)
+	check(not is_equal_approx(gain, visual.fire_gain), "Fire flickers independently of the body animation")
+	paused = true
+	var fire_clock: float = visual.clock
+	visual._process(0.5)
+	check(visual.clock == fire_clock, "Pause freezes flame and pulse clock")
+	paused = false
+	player.reset_run()
+	visual._process(0)
 	var file := FileAccess.open(output + "/metrics.json", FileAccess.WRITE)
 	check(file != null, "Metrics file opens")
 	var metrics := {"rendered_sprite_bounds": rendered_bounds, "viewport": str(root.get_visible_rect().size), "canvas_transform": str(player.get_canvas_transform()), "source_size": str(visual.source_image.get_size()), "alpha_bounds": str(visual.used_rect), "prototype_scale": player.artwork_base_scale.x, "prototype_visible_height_logical": 64, "collision_radius": radius, "projectile_origin_distance": 25, "checks": checks, "failures": failures}
