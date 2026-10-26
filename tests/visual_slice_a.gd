@@ -1,6 +1,5 @@
 extends SceneTree
 
-const VISUAL = preload("res://tests/apprentice_animation_a.gd")
 var checks: int = 0
 var failures: int = 0
 var output: String = "res://.godot/visual_slice_a"
@@ -208,15 +207,16 @@ func run() -> void:
 	game.remaining_to_spawn = 0
 	game.update_hud()
 	var automate: bool = OS.get_cmdline_user_args().has("--verify") or (OS.get_cmdline_user_args().has("--capture") or OS.get_cmdline_user_args().has("--combat-capture"))
-	check(not player.use_artwork and not player.artwork.visible, "Production procedural default remains")
-	if automate and DisplayServer.get_name() != "headless": await capture("before")
+	check(player.use_artwork and player.artwork.visible and player.visuals.mode == 2, "Production defaults to v01 A+")
+	if automate and DisplayServer.get_name() != "headless":
+		player.visuals.set_mode(0)
+		await capture("before")
+		player.visuals.set_mode(2)
 	var before: Transform2D = player.transform
 	var radius: float = player.get_node("CollisionShape2D").shape.radius
 	var health: float = player.health
 	var rng_state: int = game.rng.state
-	var visual = VISUAL.new()
-	player.add_child(visual)
-	visual.setup(player)
+	var visual = player.visuals
 	if OS.get_cmdline_user_args().has("--polish-clip"):
 		await capture_polish_clip(game, visual)
 		game.queue_free()
@@ -229,7 +229,7 @@ func run() -> void:
 	check(visual.source_image.detect_alpha() == Image.ALPHA_BLEND, "PNG has real partial-alpha edges")
 	check(visual.source_image.get_pixel(0, 0).a == 0, "PNG corner is transparent")
 	check(visual.art.texture.get_image().has_mipmaps(), "Minified illustration has mipmaps")
-	check(player.artwork.visible and player.use_artwork, "Only fixture enables new PNG")
+	check(player.artwork.visible and player.use_artwork, "Shared production visual uses v01 PNG")
 	check(player.transform == before and radius == 15 and player.health == health, "Artwork leaves actor and collision untouched")
 	check(player.move_speed == 245 and player.damage == 14 and player.cast_interval == 0.36, "Base gameplay values unchanged")
 	check(visual.art.to_global(Vector2(128, 300) + visual.art.offset).is_equal_approx(player.global_position), "Prototype foot point anchored to actor")

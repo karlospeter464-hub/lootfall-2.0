@@ -1,5 +1,10 @@
 # Lootfall 2.0 — The Ember Trial
 
+## Current Apprentice default — 2026-10-26
+
+Open this project and press **F5 → Start Run**: v01 with A+ breathing, fire flicker, movement lean and cast feedback is now the normal Player. **V** cycles A+ → original v01/A → procedural → A+. Disable Player → Use Artwork before starting for the procedural default in that session. Hitbox, attacks, balance and progress are unchanged. The isolated visual test reuses the same runtime controller; no separate launch command is needed to see the new character. Existing release ZIPs remain unchanged.
+
+
 Local development includes **Game Feel & Living World**: Echo pickups/vacuum, organic Restoration, larger upgrade cards and a living Emberhaven backdrop. See [LIVING_WORLD_PLAYTEST.md](LIVING_WORLD_PLAYTEST.md) for the sandbox demo, changed partial-wave rewards, progress v5 backups and older-build compatibility. The Alpha 0.2 ZIP is unchanged; older sections record earlier milestones.
 
 ## Alpha 0.2 Windows release (2026-10-23)
@@ -42,7 +47,7 @@ Progress v4 reads v1–v3 and tracks cumulative live Restoration by run ID. Fail
 
 See [WORLD_RESTORATION_PLAYTEST.md](WORLD_RESTORATION_PLAYTEST.md) for the quick test, exact Restoration rules, all new talent effects, save v3 compatibility, architecture and remaining limits. **1055 checks in 15 suites passed**, plus the 95-check new suite in native D3D12; eleven real screenshots archived in the separate chronicle. Existing Windows v0.1 ZIP remains older. No push.
 
-Earlier sections below describe the original milestones; the current default player is procedural, Use Artwork optionally enables the preserved illustration, the tree has 45 nodes and saves use v3.
+Earlier sections below describe the original milestones; the current default player is v01/A+, with a procedural fallback; the historical illustration is preserved, the tree has 45 nodes and saves use v3.
 
 ## Art Vertical Slice 01 — first anime mage
 

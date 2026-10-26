@@ -1,3 +1,14 @@
+# Current default — Apprentice v01 / A+, 2026-10-26
+
+Runtime image: apprentice_v01.png, byte-identical copy of the owner-supplied lootfall_apprentice_runtime_candidate_v01.png. Original test fixture and download retained. SHA256 831023c026176d2949e3e8a085148ea1cb79d72d1684a0b7977fbbead3053128, 256x320 RGBA, alpha bounds (18,26,212,274), real transparency. This is the same image used in the approved A+ test; no new artwork or raster edits. Separate source/license evidence was not supplied; provenance remains owner-supplied prototype art.
+
+scenes/player.tscn uses this texture plus scripts/apprentice_visual.gd and scripts/apprentice_fire.gdshader. Lossless imported texture with mipmaps/alpha-border fix and linear mipmap filtering; standard import/preload dependencies work without tests/ files or raw-PNG reads. Foot point (128,300), offset (-128,-300), scale 64/274 = 0.23357664, about 64 logical pixels high. Collision radius 15, shot start player position + direction * 25, gameplay and save format unchanged.
+
+F5 -> Start Run shows A+. V cycles A+ / original-v01 animation / procedural. Player -> Use Artwork=false before starting selects procedural fallback. Existing source, original procedural body and historical Crimson image below are retained. First shot has no animation delay; precharge reads the existing cooldown. Whole-body pose remains fixed-facing; no independent arm/staff or step frames. No new B rig.
+
+The native Player starts the shared visual controller after its own reset. The isolated test now reuses that component; there is no duplicate animation implementation. Disable/missing texture keeps the procedural body. Original PNG remains unmodified as backup; earlier suspicion of a second baked ground-shadow ellipse was corrected by pixel inspection.
+
+## Historical 19 October integration (not the current default)
 # Apprentice — first illustration integration
 
 Source: `Crimson Grimoire Mage Sprite.png`, supplied by the project owner on 2026-10-19 for Art Vertical Slice 01. The authoring tool and a separate license document were not provided; no third-party attribution or final production-rights claim is invented here. This is the owner's supplied prototype asset, not an extracted asset from another game.

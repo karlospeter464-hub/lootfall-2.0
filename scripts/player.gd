@@ -13,9 +13,10 @@ signal cast(origin: Vector2, direction: Vector2, damage: float)
 @export_range(1, 100, 1) var base_damage: float = 14.0
 @export_range(0.08, 2.0, 0.01) var base_cast_interval: float = 0.36
 @export_range(0.1, 2.0, 0.05) var hit_protection: float = 0.7
-@export var use_artwork: bool = false
+@export var use_artwork: bool = true
 
 @onready var artwork: Sprite2D = get_node_or_null("Artwork")
+@onready var visuals: Node2D = get_node_or_null("Visuals")
 var visual_clock: float = 0.0
 var cast_flash: float = 0.0
 var artwork_base_scale: Vector2 = Vector2.ONE
@@ -54,6 +55,8 @@ func _ready() -> void:
 	if is_instance_valid(artwork):
 		artwork_base_scale = artwork.scale
 	reset_run()
+	if is_instance_valid(visuals):
+		visuals.setup(self)
 
 func reset_run() -> void:
 	last_light_used = false

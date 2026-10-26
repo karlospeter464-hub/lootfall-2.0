@@ -1,3 +1,7 @@
+# Default integration — 26 October 2026
+
+The owner has now authorized v01/A+ as the normal Player. **F5 -> Start Run** shows it. V still cycles A+ / original-v01 animation / procedural. Runtime assets live under assets/art/characters/apprentice/ and scripts/; this isolated test reuses Player.visuals. Historical test-only statements below describe earlier work and are superseded by this integration. No gameplay/balance/save changes, no new release ZIP or push. Verification: 224 checks across Player Art (24), A+ (39), Visual Lift (12), Arena (64), Combat Polish (35), Inventory (50); normal main-scene startup and native default screenshot passed. Existing project.godot/editor-generated user files preserved.
+
 # Apprentice Visual Slice A (isolated proof)
 
 The normal Player scene and all production gameplay scripts are unchanged. This test attaches a Sprite2D wrapper and AnimationPlayer only to its own arena instance. It currently uses the owner-supplied lootfall_apprentice_runtime_candidate_v01.png as an isolated runtime candidate, not a permanent production replacement.
