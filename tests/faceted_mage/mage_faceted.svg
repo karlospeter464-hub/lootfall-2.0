@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="400" viewBox="0 0 320 400">
+<!-- Original code-native style study: upper-left light, broad planes, raised hat brim and open book. -->
+<g stroke="#111722" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+<!-- boots and legs -->
+<path fill="#252b3b" d="M128 287L155 289 153 353 143 371 117 371 119 355Z"/>
+<path fill="#373d4e" d="M167 287L192 284 199 353 210 367 184 373 172 356Z"/>
+<path fill="#666777" stroke-width="4" d="M120 354L142 348 143 361 119 367Z M179 351L194 349 201 362 184 366Z"/>
+<!-- cloak silhouette and three broad light planes -->
+<path fill="#252b3e" d="M125 177L181 174 211 199 221 258 243 324 190 343 163 315 116 343 91 318 109 254 106 202Z"/>
+<path fill="#545c70" stroke="none" d="M125 180L156 184 150 244 116 323 100 315 116 251 113 205Z"/>
+<path fill="#353d54" stroke="none" d="M156 184L182 182 202 204 202 256 223 318 191 332 167 300 151 247Z"/>
+<path fill="#8f4c46" stroke-width="4" d="M126 256L148 251 135 305 116 330 110 316Z"/>
+<path fill="#b76851" stroke="none" d="M126 261L138 262 126 301 116 317Z"/>
+<path fill="#1e2738" stroke="none" d="M182 211L203 208 204 259 223 317 199 322 181 270Z"/>
+<!-- raised collar, pale scarf, belt -->
+<path fill="#87909e" stroke-width="5" d="M128 177L151 170 169 186 184 176 195 195 174 218 147 214Z"/>
+<path fill="#d9d6c9" stroke-width="5" d="M149 187L169 189 177 232 163 251 145 233Z"/>
+<path fill="#918f92" stroke="none" d="M164 196L169 201 174 231 164 244 160 224Z"/>
+<path fill="#755d58" stroke-width="5" d="M130 248L185 247 188 261 125 263Z"/>
+<path fill="#dbc08b" stroke-width="4" d="M153 248L167 248 167 263 153 263Z"/>
+<!-- silver hair and face -->
+<path fill="#bdc6d0" d="M134 124L169 117 192 134 190 162 180 188 168 174 156 184 145 172 126 182 132 153 122 145Z"/>
+<path fill="#edd2b6" stroke-width="5" d="M148 140L179 137 183 158 168 176 149 165Z"/>
+<path fill="#b58e85" stroke="none" d="M170 144L181 143 178 160 168 170 164 160Z"/>
+<path fill="#e4e7df" stroke-width="4" d="M133 132L169 125 187 137 171 148 161 142 150 157 143 144 130 153Z"/>
+<path fill="none" stroke="#313140" stroke-width="4" d="M153 154L159 155 M172 152L177 150"/>
+<!-- hat, visible top plane and shaded underside -->
+<path fill="#242b40" d="M78 112L113 94 196 96 237 119 212 141 141 144 88 130Z"/>
+<path fill="#626b80" stroke="none" d="M85 112L115 100 191 101 226 118 193 124 126 122Z"/>
+<path fill="#161e30" stroke="none" d="M88 124L144 135 211 131 228 122 211 138 143 140Z"/>
+<path fill="#39445e" d="M113 109L134 55 145 27 169 40 196 60 171 64 186 113 160 124Z"/>
+<path fill="#69758d" stroke="none" d="M119 107L142 36 154 43 144 100 157 118Z"/>
+<path fill="#273149" stroke="none" d="M154 44L170 47 186 59 163 63 180 109 160 119 149 102Z"/>
+<path fill="#8f574e" stroke-width="4" d="M117 99L145 108 181 101 186 113 160 124 113 109Z"/>
+<path fill="#d4b37f" stroke-width="4" d="M145 106L160 111 159 123 145 118Z"/>
+<!-- left sleeve and scepter, separate silhouette -->
+<path fill="#454d61" d="M113 206L94 221 80 261 106 269 131 232Z"/>
+<path fill="#89909a" stroke-width="4" d="M81 251L109 260 105 272 79 263Z"/>
+<path fill="#d7b99f" stroke-width="5" d="M79 244L94 244 98 254 89 265 77 258Z"/>
+<path fill="none" stroke-width="14" d="M70 195L77 355"/>
+<path fill="none" stroke="#9d7960" stroke-width="7" d="M70 195L77 355"/>
+<path fill="none" stroke="#d5b486" stroke-width="3" d="M68 202L73 343"/>
+<path fill="#ad7e52" stroke-width="5" d="M56 195L68 177 85 193 77 208 65 208Z"/>
+<path fill="#e77737" stroke-width="5" d="M55 184L49 168 60 153 61 135 76 150 78 166 86 176 78 190 65 194Z"/>
+<path fill="#ffe1a0" stroke="none" d="M61 181L58 171 68 158 69 172 77 178 72 187Z"/>
+<!-- right forearm supports an open grimoire with top pages and spine thickness -->
+<path fill="#424b61" d="M199 212L219 224 236 246 220 267 198 248Z"/>
+<path fill="#d8b69a" stroke-width="5" d="M224 244L242 240 252 251 240 266 224 264Z"/>
+<path fill="#6f4b4c" stroke-width="6" d="M206 228L242 237 276 217 282 253 248 278 207 264Z"/>
+<path fill="#e4d5b4" stroke-width="5" d="M203 222L238 229 270 209 277 245 244 266 207 252Z"/>
+<path fill="#b8a991" stroke-width="3" d="M238 229L244 266 277 245 270 209Z"/>
+<path fill="none" stroke="#716b71" stroke-width="3" d="M212 233L230 237 M214 242L231 246 M248 233L264 224 M250 242L266 233"/>
+<path fill="none" stroke="#fbecd1" stroke-width="3" d="M206 223L238 230 267 212"/>
+</g></svg>

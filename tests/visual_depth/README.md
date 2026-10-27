@@ -10,6 +10,10 @@ Nur im isolierten Tiefentest sind zwei gerichtete Schlagschatten hinzugekommen: 
 
 Native Capture-Runde bei 1600×1000: 22 Checks ohne Fehler, identischer BEFORE/AFTER-Zustand, zwölf aktive Gegner, elf Schüsse/neun Treffer, 62 Schaden, alle sieben Wegpunkte und beide Vorder-/Hintergrundpassagen. Kein neuer Performancebenchmark. Nächster größerer Tiefengewinn wäre korrekte Überlagerung auch für Gegner; dafür ihre gemeinsam gezeichneten Körper/Warnflächen erst visuell trennen. Dieser Umbau wurde nicht begonnen.
 
+## Folgeauftrag: kleinere Props und Magier-Stiltest · 27.10.2026
+
+Nutzer mag den Stein-Stil, beurteilt die Größe jedoch als zu groß. Beide Props und ihre Schatten jetzt 65 % groß bei gleichen Bodenpositionen. Gemeinsamer Harness besitzt einen Charakter-Setup-Schritt für den isolierten facettierten Magier unter tests/faceted_mage/. Vergleichsaufnahme jetzt bei Frame 140 für freie Art-Sicht; unten dokumentierte Frame-30-Aufnahmen sind historisch. Zusätzliche Assertion beobachtet echte Move-/Cast-Impulse. Aktueller Basis-Tiefentest: 20 Headless-Checks bestanden; Produktions-Player-Art-Test: 24. Normales F5 weiterhin ohne Testprops/-Magier.
+
 ## Start
 
 Aus dem Spielverzeichnis in PowerShell:

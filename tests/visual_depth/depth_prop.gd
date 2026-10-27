@@ -34,10 +34,13 @@ func _draw() -> void:
 			atmosphere.fill_to = Vector2(0.95, 0.9)
 			draw_texture_rect(atmosphere, Rect2(64, 128, 1152, 592), false)
 			# Projected silhouettes follow the same upper-left light as the lit stone faces.
+			draw_set_transform(Vector2(470,400) * 0.35, 0, Vector2.ONE * 0.65)
 			draw_colored_polygon(PackedVector2Array([Vector2(422,395),Vector2(482,412),Vector2(614,470),Vector2(622,459),Vector2(608,452),Vector2(598,437),Vector2(582,442),Vector2(563,427),Vector2(515,380)]), Color(0.025,0.03,0.055,0.32))
+			draw_set_transform(Vector2(740,480) * 0.35, 0, Vector2.ONE * 0.65)
 			draw_colored_polygon(PackedVector2Array([Vector2(675,479),Vector2(748,496),Vector2(842,522),Vector2(858,508),Vector2(833,483),Vector2(803,468),Vector2(767,463)]), Color(0.025,0.03,0.055,0.24))
-			shadow(Vector2(491, 412), Vector2(77, 22))
-			shadow(Vector2(764, 492), Vector2(99, 25))
+			draw_set_transform(Vector2.ZERO)
+			shadow(Vector2(470,400) + Vector2(21,12) * 0.65, Vector2(77,22) * 0.65)
+			shadow(Vector2(740,480) + Vector2(24,12) * 0.65, Vector2(99,25) * 0.65)
 		Kind.RUIN: ruin()
 		Kind.ROCK: rock()
 
