@@ -2,6 +2,7 @@ extends "res://tests/visual_slice_a.gd"
 
 const PROP = preload("res://tests/visual_depth/depth_prop.gd")
 var depth: Node2D
+var motion_animator: AnimationPlayer
 var pair_verified: bool = false
 var motion_frames: int = 0
 var frames_output: String = ""
@@ -76,6 +77,7 @@ func run() -> void:
 	check(not depth.visible and game.rng.state == rng_before, "T disables all depth visuals without touching gameplay RNG")
 	depth._unhandled_key_input(toggle)
 	check(depth.visible, "T restores depth test")
+	motion_animator = player.visuals.animator
 	setup_character(player)
 	game.update_hud()
 	if not OS.get_cmdline_user_args().has("--verify") and not OS.get_cmdline_user_args().has("--capture"):
@@ -107,8 +109,8 @@ func run() -> void:
 		if is_instance_valid(target) and not target.dead:
 			player.aim = player.global_position.direction_to(target.global_position)
 			player.attack(player.aim)
-		move_seen = move_seen or player.visuals.animator.current_animation == "move"
-		cast_seen = cast_seen or player.visuals.animator.current_animation == "cast"
+		move_seen = move_seen or motion_animator.current_animation == "move"
+		cast_seen = cast_seen or motion_animator.current_animation == "cast"
 		movement_distance += player.position.distance_to(previous)
 		previous = player.position
 		if player.position.distance_to(waypoints[waypoint]) < 8: waypoint += 1
