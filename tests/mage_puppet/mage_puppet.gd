@@ -1,8 +1,10 @@
 extends Node2D
 
 const SOURCE = preload("res://assets/art/characters/apprentice/apprentice_v01.png")
-const ANCHORS = [Vector2(99,164), Vector2(169,188), Vector2(128,105)]
+var anchors = [Vector2(99,164), Vector2(169,188), Vector2(128,105)]
 var arm_region = PackedVector2Array([Vector2(0,35),Vector2(58,35),Vector2(76,89),Vector2(76,143),Vector2(101,150),Vector2(109,169),Vector2(86,207),Vector2(101,288),Vector2(73,300),Vector2(46,226),Vector2(0,180)])
+var art_texture: Texture2D = SOURCE
+var articulation_gain: float = 1.0
 var player: CharacterBody2D
 var selected: bool = true
 var mesh := Polygon2D.new()
@@ -24,7 +26,7 @@ func setup(actor: CharacterBody2D) -> void:
 	for index in 3:
 		var joint := Node2D.new()
 		joint.name = ["ScepterArm","BookHand","HatTip"][index]
-		joint.position = ANCHORS[index]
+		joint.position = anchors[index]
 		add_child(joint)
 		joints.append(joint)
 	var triangles: Array[PackedInt32Array] = []
@@ -32,11 +34,8 @@ func setup(actor: CharacterBody2D) -> void:
 		for x in 33:
 			var point := Vector2(x*8,y*8)
 			points.append(point)
-			var arm: float = smoothstep(0,25,point.distance_to(ANCHORS[0])) if Geometry2D.is_point_in_polygon(point,arm_region) else 0.0
-			var book: float = smoothstep(155,188,point.x) * smoothstep(148,174,point.y) * (1.0-smoothstep(207,234,point.y))
-			var hat: float = smoothstep(66,98,point.x) * (1.0-smoothstep(62,105,point.y))
-			var weight := Vector3(arm,book,hat)
-			weights.append(weight / maxf(1,arm+book+hat))
+			var weight: Vector3 = joint_weights(point)
+			weights.append(weight / maxf(1,weight.x+weight.y+weight.z))
 			if x < 32 and y < 40:
 				var i: int = y*33+x
 				triangles.append(PackedInt32Array([i,i+1,i+34]))
@@ -52,12 +51,11 @@ func setup(actor: CharacterBody2D) -> void:
 				softened.append(sum/9.0)
 		weights = softened
 	for index in points.size():
-		weights[index].x *= 1.0-smoothstep(100,128,points[index].x)
-		weights[index].y *= smoothstep(142,166,points[index].x)
+		weights[index] = lock_torso(points[index],weights[index])
 	mesh.polygon = points
 	mesh.uv = points
 	mesh.polygons = triangles
-	mesh.texture = SOURCE
+	mesh.texture = art_texture
 	mesh.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	add_child(mesh)
 	add_child(animator)
@@ -77,7 +75,7 @@ func animation(duration: float, looping: bool, poses: Array) -> Animation:
 	for joint in 3:
 		var track: int = result.add_track(Animation.TYPE_VALUE)
 		result.track_set_path(track,NodePath(str(joints[joint].name)+":rotation"))
-		for key in poses.size(): result.track_insert_key(track,duration*key/float(poses.size()-1),poses[key][joint])
+		for key in poses.size(): result.track_insert_key(track,duration*key/float(poses.size()-1),poses[key][joint]*articulation_gain)
 	return result
 
 func select(value: bool) -> void:
@@ -116,7 +114,7 @@ func update_skin() -> void:
 	var deformed := points.duplicate()
 	for index in points.size():
 		for joint in 3:
-			deformed[index] += (joints[joint].transform * (points[index]-ANCHORS[joint])-points[index]) * weights[index][joint]
+			deformed[index] += (joints[joint].transform * (points[index]-anchors[joint])-points[index]) * weights[index][joint]
 	mesh.polygon = deformed
 
 func pose(angles: Vector3) -> void:
@@ -127,3 +125,14 @@ func pose(angles: Vector3) -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_V:
 		select(not selected)
+
+func joint_weights(point: Vector2) -> Vector3:
+	var arm: float = smoothstep(0,25,point.distance_to(anchors[0])) if Geometry2D.is_point_in_polygon(point,arm_region) else 0.0
+	var book: float = smoothstep(155,188,point.x) * smoothstep(148,174,point.y) * (1.0-smoothstep(207,234,point.y))
+	var hat: float = smoothstep(66,98,point.x) * (1.0-smoothstep(62,105,point.y))
+	return Vector3(arm,book,hat)
+
+func lock_torso(point: Vector2, weight: Vector3) -> Vector3:
+	weight.x *= 1.0-smoothstep(100,128,point.x)
+	weight.y *= smoothstep(142,166,point.x)
+	return weight

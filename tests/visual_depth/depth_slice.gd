@@ -6,6 +6,7 @@ var motion_animator: AnimationPlayer
 var pair_verified: bool = false
 var motion_frames: int = 0
 var frames_output: String = ""
+var comparison_frame: int = 140
 
 class DepthSwitch extends Node2D:
 	func _unhandled_key_input(event: InputEvent) -> void:
@@ -92,6 +93,8 @@ func run() -> void:
 	var initial_enemies: Array = game.enemies.get_children().map(func(enemy): return enemy.position)
 	var crossings: Dictionary = {"ruin_behind":false,"ruin_front":false,"rock_behind":false,"rock_front":false}
 	var minimum_enemies: int = 12
+	var capture_times: Array[float] = []
+	var elapsed_start: float = game.elapsed
 	var count_frames: int = 0
 	var move_seen: bool = false
 	var cast_seen: bool = false
@@ -106,8 +109,9 @@ func run() -> void:
 		if direction.y < -0.2: Input.action_press("move_up")
 		if direction.y > 0.2: Input.action_press("move_down")
 		await physics_frame
+		await process_frame
 		if is_instance_valid(target) and not target.dead:
-			player.aim = player.global_position.direction_to(target.global_position)
+			player.aim = test_aim(player,target,frame)
 			player.attack(player.aim)
 		move_seen = move_seen or motion_animator.current_animation == "move"
 		cast_seen = cast_seen or motion_animator.current_animation == "cast"
@@ -124,11 +128,12 @@ func run() -> void:
 				if frame % 30 == 0: check(prop.z_index == (3 if side == "behind" else 1), "Prop switches at ground anchor")
 		minimum_enemies = mini(minimum_enemies, game.enemies.get_child_count())
 		count_frames += 1
-		if frame == 140 and DisplayServer.get_name() != "headless": await pair(game)
+		if frame == comparison_frame and DisplayServer.get_name() != "headless": await pair(game)
 		if not frames_output.is_empty() and frame % 8 == 0 and DisplayServer.get_name() != "headless":
 			await process_frame
 			await RenderingServer.frame_post_draw
 			check(root.get_texture().get_image().save_png(frames_output + "/%04d.png" % motion_frames) == OK, "Save real movement frame")
+			capture_times.append(game.elapsed-elapsed_start)
 			motion_frames += 1
 	for action in ["move_left","move_right","move_up","move_down"]: Input.action_release(action)
 	check(waypoint == waypoints.size() and movement_distance > 800, "Original input walks the complete route past both props")
@@ -140,7 +145,7 @@ func run() -> void:
 		if index < initial_enemies.size() and game.enemies.get_child(index).position.distance_to(initial_enemies[index]) > 1: enemies_moved = true
 	check(enemies_moved, "Original enemy AI moves")
 	check(move_seen and cast_seen, "Original velocity and accepted shots drive move and cast animations")
-	var report := {"physics_frames":count_frames,"minimum_enemies":minimum_enemies,"waypoints_reached":waypoint,"crossings":crossings,"path_distance":movement_distance,"shots_fired":game.shots_fired,"shots_hit":game.shots_hit,"damage":game.damage_dealt,"health_end":player.health,"identical_pair_verified":pair_verified,"movement_png_frames":motion_frames,"move_seen":move_seen,"cast_seen":cast_seen,"checks":checks,"failures":failures}
+	var report := {"physics_frames":count_frames,"minimum_enemies":minimum_enemies,"waypoints_reached":waypoint,"crossings":crossings,"path_distance":movement_distance,"shots_fired":game.shots_fired,"shots_hit":game.shots_hit,"damage":game.damage_dealt,"health_end":player.health,"identical_pair_verified":pair_verified,"movement_png_frames":motion_frames,"capture_times":capture_times,"gameplay_seconds":game.elapsed-elapsed_start,"move_seen":move_seen,"cast_seen":cast_seen,"checks":checks,"failures":failures}
 	var file := FileAccess.open(output + "/metrics.json",FileAccess.WRITE)
 	if file: file.store_string(JSON.stringify(report,"\t"))
 	print("DEPTH PROOF: ",report)
@@ -150,3 +155,6 @@ func run() -> void:
 
 func setup_character(_player: CharacterBody2D) -> void:
 	pass
+
+func test_aim(player, target, _frame: int) -> Vector2:
+	return player.global_position.direction_to(target.global_position)
