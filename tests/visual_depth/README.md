@@ -2,6 +2,14 @@
 
 Ein begrenzter Umgebungstest: ein gebrochener Ruinenpfeiler, ein großer Fels, Kontaktschatten und ein dezenter kühler Boden-Lichtverlauf. Ausschließlich neue Testdateien; keine produktive Integration, kein neuer Charakter und keine Kollisions-, Gameplay-, Restoration- oder Save-Änderung.
 
+## Folgeauftrag: größeres Fenster und gerichtete Schatten · 27.10.2026
+
+Nutzer beurteilt die Steine positiv und beauftragt eine größere Spiel-/Fensterauflösung sowie weitere Tiefe. Fenster und tatsächliche Renderausgabe jetzt 1600×1000 statt 1152×720; canvas_items rendert an der Fenstergröße, die logische 1280×800-Arena bleibt proportional unverändert. Der erkannte Bildschirm bietet 1920×1200 / Arbeitsbereich 1920×1140. Die folgenden älteren 1152×720-Messungen dokumentieren den ersten Versuch.
+
+Nur im isolierten Tiefentest sind zwei gerichtete Schlagschatten hinzugekommen: längerer gebrochener Pfeilerschatten, kürzerer Felsschatten, passend zum oberen linken Hauptlicht. Steinzeichnungen unverändert. Formen selbst in Godot gezeichnet, keine Bibliotheks-/Download-/KI-Bildassets. Normales F5 übernimmt nur die größere Fenstergröße, nicht die Testprops.
+
+Native Capture-Runde bei 1600×1000: 22 Checks ohne Fehler, identischer BEFORE/AFTER-Zustand, zwölf aktive Gegner, elf Schüsse/neun Treffer, 62 Schaden, alle sieben Wegpunkte und beide Vorder-/Hintergrundpassagen. Kein neuer Performancebenchmark. Nächster größerer Tiefengewinn wäre korrekte Überlagerung auch für Gegner; dafür ihre gemeinsam gezeichneten Körper/Warnflächen erst visuell trennen. Dieser Umbau wurde nicht begonnen.
+
 ## Start
 
 Aus dem Spielverzeichnis in PowerShell:
