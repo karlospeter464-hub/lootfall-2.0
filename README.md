@@ -1,9 +1,10 @@
 # Lootfall 2.0 — The Ember Trial
 
-## Current Apprentice default — 2026-10-26
+## Current Apprentice default — 2026-10-28
 
-Open this project and press **F5 → Start Run**: v01 with A+ breathing, fire flicker, movement lean and cast feedback is now the normal Player. **V** cycles A+ → original v01/A → procedural → A+. Disable Player → Use Artwork before starting for the procedural default in that session. Hitbox, attacks, balance and progress are unchanged. The isolated visual test reuses the same runtime controller; no separate launch command is needed to see the new character. Existing release ZIPs remain unchanged.
+**F5 → Start Run** now uses the approved four-direction mage. Mouse aim selects front/right/back/left independently of WASD movement; arm, book and hat have local idle/move/cast gestures. The approved rear V2 shows the open inner pages toward the viewer. **V** switches between this mage and the previous v01/A+ visual. Disable Player → Use Artwork before starting for the procedural fallback. Collision, projectile origins, combat and progression are unchanged. Test scenery remains isolated; existing release ZIPs are unchanged.
 
+Runtime art/provenance: `assets/art/characters/apprentice/directions/README.md`. Regression commands: `--headless --path . --script res://tests/apprentice_startup_test.gd -- --test-mode` and `--headless --path . --script res://tests/apprentice_directions_test.gd -- --test-mode --verify`. The latter exercises the production player with active enemies; historical art tests retain explicit legacy scene fixtures.
 
 Local development includes **Game Feel & Living World**: Echo pickups/vacuum, organic Restoration, larger upgrade cards and a living Emberhaven backdrop. See [LIVING_WORLD_PLAYTEST.md](LIVING_WORLD_PLAYTEST.md) for the sandbox demo, changed partial-wave rewards, progress v5 backups and older-build compatibility. The Alpha 0.2 ZIP is unchanged; older sections record earlier milestones.
 
@@ -47,7 +48,7 @@ Progress v4 reads v1–v3 and tracks cumulative live Restoration by run ID. Fail
 
 See [WORLD_RESTORATION_PLAYTEST.md](WORLD_RESTORATION_PLAYTEST.md) for the quick test, exact Restoration rules, all new talent effects, save v3 compatibility, architecture and remaining limits. **1055 checks in 15 suites passed**, plus the 95-check new suite in native D3D12; eleven real screenshots archived in the separate chronicle. Existing Windows v0.1 ZIP remains older. No push.
 
-Earlier sections below describe the original milestones; the current default player is v01/A+, with a procedural fallback; the historical illustration is preserved, the tree has 45 nodes and saves use v3.
+Earlier sections below describe the original milestones; the current default player is the four-direction mage, with v01/A+ and procedural fallbacks; the historical illustration is preserved, the tree has 45 nodes and saves use v3.
 
 ## Art Vertical Slice 01 — first anime mage
 

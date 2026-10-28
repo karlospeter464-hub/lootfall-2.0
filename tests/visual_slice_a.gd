@@ -31,7 +31,7 @@ func measure_sprite() -> void:
 	viewport.transparent_bg = true
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(viewport)
-	var actor = load("res://scenes/player.tscn").instantiate()
+	var actor = load("res://tests/fixtures/legacy_player.tscn").instantiate()
 	viewport.add_child(actor)
 	actor.position = Vector2(80, 90)
 	actor.controls_enabled = false
@@ -183,7 +183,7 @@ func capture_polish_clip(game, visual) -> void:
 func run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output))
 	if DisplayServer.get_name() != "headless" and not OS.get_cmdline_user_args().has("--polish-clip"): await measure_sprite()
-	var game = load("res://scenes/arena.tscn").instantiate()
+	var game = load("res://tests/fixtures/legacy_arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
 	game.restart_run()

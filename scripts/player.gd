@@ -17,6 +17,7 @@ signal cast(origin: Vector2, direction: Vector2, damage: float)
 
 @onready var artwork: Sprite2D = get_node_or_null("Artwork")
 @onready var visuals: Node2D = get_node_or_null("Visuals")
+@onready var directions: Node2D = get_node_or_null("Directions")
 var visual_clock: float = 0.0
 var cast_flash: float = 0.0
 var artwork_base_scale: Vector2 = Vector2.ONE
@@ -57,6 +58,8 @@ func _ready() -> void:
 	reset_run()
 	if is_instance_valid(visuals):
 		visuals.setup(self)
+	if is_instance_valid(directions):
+		directions.setup(self)
 
 func reset_run() -> void:
 	last_light_used = false

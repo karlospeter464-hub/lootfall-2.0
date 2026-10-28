@@ -16,7 +16,7 @@ func check(condition: bool, message: String) -> void:
 		push_error(message)
 
 func run() -> void:
-	var game = load("res://scenes/arena.tscn").instantiate()
+	var game = load("res://tests/fixtures/legacy_arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
 	game.restart_run()
@@ -79,7 +79,7 @@ func run() -> void:
 	var dependencies: PackedStringArray = ResourceLoader.get_dependencies("res://scripts/apprentice_visual.gd")
 	check(not Array(dependencies).any(func(path): return path.contains("res://tests/")), "Production visual has no test-only dependencies")
 	check(FileAccess.file_exists("res://assets/art/characters/apprentice/apprentice_crimson_grimoire.png"), "Historical illustration preserved")
-	var fallback = load("res://scenes/player.tscn").instantiate()
+	var fallback = load("res://tests/fixtures/legacy_player.tscn").instantiate()
 	fallback.use_artwork = false
 	root.add_child(fallback)
 	check(not fallback.artwork.visible and fallback.visuals.mode == 0, "Inspector false selects procedural fallback on startup")

@@ -1,3 +1,9 @@
+# Current default — four-direction Apprentice, 2026-10-28
+
+Approved directional mage is now the normal player. See directions/README.md for source, approved V2 rear and runtime details. V restores the previous A+ visual; Use Artwork=false starts procedural.
+
+## Historical v01/A+ integration (26 October)
+
 # Current default — Apprentice v01 / A+, 2026-10-26
 
 Runtime image: apprentice_v01.png, byte-identical copy of the owner-supplied lootfall_apprentice_runtime_candidate_v01.png. Original test fixture and download retained. SHA256 831023c026176d2949e3e8a085148ea1cb79d72d1684a0b7977fbbead3053128, 256x320 RGBA, alpha bounds (18,26,212,274), real transparency. This is the same image used in the approved A+ test; no new artwork or raster edits. Separate source/license evidence was not supplied; provenance remains owner-supplied prototype art.

@@ -7,9 +7,7 @@ var strafe_seen: bool = false
 func setup_character(player: CharacterBody2D) -> void:
 	comparison_frame = 98
 	check(FileAccess.get_sha256("res://assets/art/characters/apprentice/apprentice_v01.png") == "831023c026176d2949e3e8a085148ea1cb79d72d1684a0b7977fbbead3053128","Original v01 remains unchanged")
-	visual = DIRECTIONAL.new()
-	player.add_child(visual)
-	visual.setup(player)
+	visual = character_visual(player)
 	motion_animator = visual.puppets[visual.facing].animator
 	visual.facing_changed.connect(func(animator): motion_animator = animator)
 	var original: Transform2D = player.transform
@@ -78,3 +76,9 @@ func pair(game) -> void:
 	var file := FileAccess.open(output+"/direction_metrics.json",FileAccess.WRITE)
 	if file: file.store_string(JSON.stringify({"seen_in_live_combat":visual.seen,"strafe_seen":strafe_seen,"four_true_sources":true,"mirroring":false,"logical_height_target":64,"pixel_canvas":Vector2i(256,320),"foot_anchor":Vector2(128,300)},"\t"))
 	paused=false
+
+func character_visual(player):
+	var result = DIRECTIONAL.new()
+	player.add_child(result)
+	result.setup(player)
+	return result

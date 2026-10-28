@@ -35,7 +35,7 @@ func run() -> void:
 	check(DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output)) == OK, "Create comparison output")
 	if not frames_output.is_empty():
 		check(DirAccess.make_dir_recursive_absolute(frames_output) == OK, "Create movement frame output")
-	var game = load("res://scenes/arena.tscn").instantiate()
+	var game = create_arena()
 	root.add_child(game)
 	await process_frame
 	game.restart_run()
@@ -64,7 +64,7 @@ func run() -> void:
 		prop.position = Vector2.ZERO if kind == 0 else (Vector2(470,400) if kind == 1 else Vector2(740,480))
 		depth.add_child(prop)
 	check(game.run_region == 0 and is_zero_approx(game.restoration_visual), "Unrestored Ashen Fields")
-	check(player.visuals.mode == 2 and player.artwork.texture == player.visuals.ART_TEXTURE, "Current production character retained")
+	check((player.directions != null and player.directions.enabled) or (player.visuals.mode == 2 and player.artwork.texture == player.visuals.ART_TEXTURE), "Current production character retained")
 	check(player.get_canvas_transform() == Transform2D.IDENTITY and root.content_scale_size == Vector2i(1280,800), "Normal camera and resolution")
 	check(player.get_node("CollisionShape2D").shape.radius == 15 and player.move_speed == 245 and player.damage == 14 and player.cast_interval == 0.36, "Original collision and combat values")
 	check(depth.get_child_count() == 3 and depth.find_children("*", "CollisionObject2D", true, false).is_empty(), "Exactly two props and ground pass; no new collisions")
@@ -158,3 +158,6 @@ func setup_character(_player: CharacterBody2D) -> void:
 
 func test_aim(player, target, _frame: int) -> Vector2:
 	return player.global_position.direction_to(target.global_position)
+
+func create_arena():
+	return load("res://tests/fixtures/legacy_arena.tscn").instantiate()
