@@ -363,6 +363,18 @@ func build_test_tools(page: VBoxContainer) -> void:
 		game.complete_wave()
 		open_console()
 		status.text = "Wave cleared without kill loot; normal rewards and card choice apply.")
+	var friends_row := HBoxContainer.new()
+	page.add_child(friends_row)
+	button(friends_row, "Friends: unlock both (current save)", func():
+		if not game.progress.companions.enabled:
+			status.text = "Convert the legacy tree in Emberhaven first (exact refund + backup)."
+			return
+		var ok: bool = game.progress.rescue_companion("gravity") and game.progress.rescue_companion("prism")
+		status.text = "Both friends saved. Return to Emberhaven for purchases; start a new run for Q/E." if ok else game.progress.message
+		if game.state == game.State.TOWN: game.town_panel.refresh())
+	button(friends_row, "Ready Q/E (current run)", func():
+		game.companion_magic.cooldowns.fill(0.0)
+		status.text = "Companion cooldowns reset. Close F1, aim and press Q/E.")
 	var hint := Label.new()
 	hint.text = "Rewards & tools: invulnerability, freeze, any item drop, RNG seed and isolated encounter presets.\nEmberhaven: World Sandbox keeps experimental world progress in a separate save."
 	page.add_child(hint)
@@ -432,7 +444,7 @@ func update_metrics() -> void:
 	metrics.text += "\nDEV prepaid Echoes: %d   |   Save: %s   |   Region Restoration: %.1f%%" % [game.debug_echoes_paid, "SANDBOX" if game.sandbox else ("ISOLATED TEST" if OS.get_cmdline_user_args().has("--test-mode") else "NORMAL"), game.WORLD.fraction(game.progress.world, game.run_region) * 100]
 	metrics.text += "\nEcho attacks: %d/4 (pending %s)   |   Hunter targets: %d   |   Phoenix hits: %d/10, cooldown %.1fs" % [game.echo_attacks, str(not game.pending_echo.is_empty()), game.hunter_marks.size(), game.phoenix_hits, game.phoenix_left]
 	metrics.text += "\nBurst / Pierce / Overcharge: %s / %s / %s   |   Charge: %d/4 %s" % [str(game.mechanic_cards.has(3)), str(game.mechanic_cards.has(4)), str(game.mechanic_cards.has(5)), game.player.overcharge_hits, "READY" if game.player.overcharge_ready else ""]
-	metrics.text += "\nTalents saved / active: %d / %d   |   Echoes invested: %d   |   Second Wind: %.1fs" % [game.progress.talents.size(), game.active_talents.size(), game.progress.invested(), game.player.haste_remaining]
+	metrics.text += "\nTalents saved / active: %d / %d   |   Echoes invested: %d   |   Second Wind: %.1fs" % [game.progress.talents.size() + game.progress.companions.purchases.size(), game.active_talents.size() + game.companion_magic.talents.size(), game.progress.invested(), game.player.haste_remaining]
 	var rates: Dictionary = game.rarity_rates()
 	metrics.text += "\nItem chance / kill: %.2f%%   |   Natural Codex available: %s" % [game.equipment_drop_chance * 100, str(not game.codex_spawned)]
 	metrics.text += "\nActual share / item (L / R / M / N): %.2f%% / %.2f%% / %.2f%% / %.2f%%" % [rates.legendary * 100, rates.rare * 100, rates.magic * 100, rates.normal * 100]

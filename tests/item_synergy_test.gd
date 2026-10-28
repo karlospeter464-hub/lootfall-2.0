@@ -62,6 +62,10 @@ func hit(shots: Array, delta: float = 0.25) -> void:
 func run() -> void:
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	check(game.CATALOG.ITEMS.size() == 8 and game.equipment_drop_chance == 0.05 and game.champion_cooldown == 2, "CE4 defaults use eight items, five percent drops and two-second walk cooldown")
 	reset("echo_scepter")

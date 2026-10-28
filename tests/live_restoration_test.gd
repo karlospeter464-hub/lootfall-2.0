@@ -48,6 +48,10 @@ func run() -> void:
 	check(not invalid.load_progress() and not invalid.award(1, 1), "Corrupt live metadata blocks writes without altering the original")
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	game.set_process(false)
 	var initial: Dictionary = WORLD.fresh()

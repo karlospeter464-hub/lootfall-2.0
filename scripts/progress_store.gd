@@ -1,6 +1,7 @@
 extends RefCounted
 
 const SAFE_JSON = preload("res://scripts/safe_json.gd")
+const FRIENDS = preload("res://scripts/companion_catalog.gd")
 const TREE = preload("res://scripts/skill_tree.gd")
 const WORLD = preload("res://scripts/world_regions.gd")
 const MAX_ECHOES: int = 1000000000
@@ -8,6 +9,7 @@ var path: String = "user://progress.json"
 var echoes: int = 0
 var best_wave: int = 0
 var talents: Dictionary = {}
+var companions: Dictionary = FRIENDS.fresh()
 var world: Dictionary = WORLD.fresh()
 var last_settlement: String = ""
 var legacy_source: String = ""
@@ -27,6 +29,7 @@ func load_progress() -> bool:
 		echoes = 0
 		best_wave = 0
 		talents = {}
+		companions = FRIENDS.fresh()
 		world = WORLD.fresh()
 		last_settlement = ""
 		legacy_source = ""
@@ -38,7 +41,7 @@ func load_progress() -> bool:
 
 func _load_from(source: String) -> bool:
 	var data: Dictionary = SAFE_JSON.read_object(source)
-	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5) or not _whole(data.get("echoes"), MAX_ECHOES) or not _whole(data.get("best_wave"), 100):
+	if (data.get("version") != 1 and data.get("version") != 2 and data.get("version") != 3 and data.get("version") != 4 and data.get("version") != 5 and data.get("version") != 6) or not _whole(data.get("echoes"), MAX_ECHOES) or not _whole(data.get("best_wave"), 100):
 		return _invalid()
 	var loaded: Variant = {} if data.version == 1 else data.get("talents")
 	if not loaded is Dictionary or loaded.size() > TREE.NODES.size():
@@ -68,6 +71,14 @@ func _load_from(source: String) -> bool:
 		return _invalid()
 	if loaded_echo.paid > loaded_echo.earned or (loaded_echo.id.is_empty() and loaded_echo.earned != 0) or loaded_echo.earned - loaded_echo.paid > MAX_ECHOES - int(data.echoes) - refund:
 		return _invalid()
+	var loaded_friends: Variant = data.get("companions") if data.version >= 6 else FRIENDS.fresh(false)
+	if not FRIENDS.valid(loaded_friends) or (loaded_friends.enabled and not loaded.is_empty()):
+		return _invalid()
+	var friend_investment: int = 0
+	for price in loaded_friends.purchases.values(): friend_investment += int(price)
+	if friend_investment > MAX_ECHOES - int(data.echoes) - refund - int(loaded_echo.earned) + int(loaded_echo.paid):
+		return _invalid()
+	companions = loaded_friends.duplicate(true)
 	echo_run = {"id": loaded_echo.id, "earned": int(loaded_echo.earned), "paid": int(loaded_echo.paid)}
 	restoration_run = {"id": loaded_run.id, "region": int(loaded_run.region), "credited": int(loaded_run.credited)}
 	legacy_source = source if data.version < 3 else ""
@@ -98,6 +109,7 @@ func invested() -> int:
 	var total: int = 0
 	for price in talents.values():
 		total += int(price)
+	for price in companions.purchases.values(): total += int(price)
 	return total
 
 func record_echoes(total: int, id: String) -> bool:
@@ -134,7 +146,7 @@ func debug_advance(amount: int, reached: int, region: int, total: int, run_id: S
 	return OS.is_debug_build() and _award_expedition(amount, reached, region, total, run_id, false)
 
 func buy(id: String, price: int) -> bool:
-	if not available or price < 1 or price > echoes or not TREE.accessible(id, talents):
+	if companions.enabled or not available or price < 1 or price > echoes or not TREE.accessible(id, talents):
 		message = "Purchase unavailable: check Echoes and connected prerequisites."
 		return false
 	var next: Dictionary = talents.duplicate()
@@ -142,7 +154,7 @@ func buy(id: String, price: int) -> bool:
 	return _save(echoes - price, best_wave, next)
 
 func refund_all() -> bool:
-	if not available or talents.is_empty():
+	if companions.enabled or not available or talents.is_empty():
 		message = "No saved talents to refund, or progress is unavailable."
 		return false
 	return _save(echoes + invested(), best_wave, {})
@@ -168,17 +180,23 @@ func _award_expedition(amount: int, reached: int, region: int, total: int, run_i
 	var next_run := {"id": run_id, "region": region, "credited": total}
 	return _save(echoes + amount, maxi(best_wave, reached), talents, next, run_id if final else "", next_run)
 
-func _save(next_echoes: int, next_best: int, next_talents: Dictionary, next_world: Dictionary = {}, settlement: String = "", next_run: Dictionary = {}, next_echo: Dictionary = {}) -> bool:
+func _save(next_echoes: int, next_best: int, next_talents: Dictionary, next_world: Dictionary = {}, settlement: String = "", next_run: Dictionary = {}, next_echo: Dictionary = {}, next_friends: Dictionary = {}) -> bool:
+	var saved_friends: Dictionary = companions if next_friends.is_empty() else next_friends
+	if not FRIENDS.valid(saved_friends) or (saved_friends.enabled and not next_talents.is_empty()): return false
 	var saved_world: Dictionary = world if next_world.is_empty() else next_world
 	var saved_id: String = last_settlement if settlement.is_empty() else settlement
 	var saved_run: Dictionary = restoration_run if next_run.is_empty() else next_run
 	var saved_echo: Dictionary = echo_run if next_echo.is_empty() else next_echo
 	var reserved: int = int(saved_echo.earned) - int(saved_echo.paid)
 	for price in next_talents.values(): reserved += int(price)
+	for price in saved_friends.purchases.values(): reserved += int(price)
 	if next_echoes < 0 or next_echoes > MAX_ECHOES - reserved:
 		message = "Echo storage limit reached. Pending rewards preserved."
 		return false
-	var data := {"version": 5, "echoes": next_echoes, "best_wave": next_best, "talents": next_talents, "world": saved_world, "last_settlement": saved_id, "restoration_run": saved_run, "echo_run": saved_echo}
+	var data := {"version": 6, "companions": saved_friends, "echoes": next_echoes, "best_wave": next_best, "talents": next_talents, "world": saved_world, "last_settlement": saved_id, "restoration_run": saved_run, "echo_run": saved_echo}
+	if not saved_friends.enabled:
+		data.version = 5
+		data.erase("companions")
 	if not living_source.is_empty() and not FileAccess.file_exists(path + ".pre_living.json"):
 		var original: Dictionary = SAFE_JSON.read_object(living_source)
 		if original.is_empty() or SAFE_JSON.write_object(path + ".pre_living.json", original) != OK:
@@ -207,6 +225,7 @@ func _save(next_echoes: int, next_best: int, next_talents: Dictionary, next_worl
 	echoes = next_echoes
 	best_wave = next_best
 	talents = next_talents.duplicate()
+	companions = saved_friends.duplicate(true)
 	world = saved_world.duplicate(true)
 	last_settlement = saved_id
 	restoration_run = saved_run.duplicate()
@@ -218,3 +237,58 @@ func _save(next_echoes: int, next_best: int, next_talents: Dictionary, next_worl
 
 func _whole(value: Variant, maximum: int) -> bool:
 	return (value is int or value is float) and is_finite(float(value)) and float(value) == floorf(float(value)) and float(value) >= 0 and float(value) <= maximum
+
+func migrate_companions() -> bool:
+	if not available or companions.enabled: return false
+	# Copy bytes before the first conversion; never mutate an old save while reading it.
+	var source: String = path if FileAccess.file_exists(path) else path + ".bak"
+	if FileAccess.file_exists(source):
+		var backup_path: String = path + ".pre_companions.json"
+		var original: PackedByteArray = FileAccess.get_file_as_bytes(source)
+		# A previous failed conversion may have left a backup of an older valid save.
+		if FileAccess.file_exists(backup_path) and FileAccess.get_file_as_bytes(backup_path) != original:
+			backup_path = path + ".pre_companions_%d.json" % Time.get_ticks_usec()
+		if not FileAccess.file_exists(backup_path):
+			var backup := FileAccess.open(backup_path, FileAccess.WRITE)
+			if backup == null:
+				message = "Companion backup could not be written. Original preserved."
+				return false
+			backup.store_buffer(original)
+			backup.flush()
+			var error: Error = backup.get_error()
+			backup.close()
+			if error != OK or FileAccess.get_file_as_bytes(backup_path) != original:
+				message = "Companion backup verification failed. Original preserved."
+				return false
+	var next: Dictionary = FRIENDS.fresh()
+	next.legacy_refund = invested()
+	return _save(echoes + invested(), best_wave, {}, {}, "", {}, {}, next)
+
+func rescue_companion(id: String) -> bool:
+	if not available or not companions.enabled or not FRIENDS.SPECIALS.has(id): return false
+	if id in companions.rescued: return true
+	var next: Dictionary = companions.duplicate(true)
+	next.rescued.append(id)
+	for index in 2:
+		if next.slots[index] == "":
+			next.slots[index] = id
+			break
+	return _save(echoes, best_wave, talents, {}, "", {}, {}, next)
+
+func equip_companions(slots: Array) -> bool:
+	var next: Dictionary = companions.duplicate(true)
+	next.slots = slots.duplicate()
+	return available and companions.enabled and FRIENDS.valid(next) and _save(echoes, best_wave, talents, {}, "", {}, {}, next)
+
+func buy_companion(id: String) -> bool:
+	var tree: Dictionary = FRIENDS.nodes(id.get_slice(".", 0))
+	if not available or not companions.enabled or id.get_slice(".", 0) not in companions.rescued or not FRIENDS.accessible(id, companions.purchases) or not tree.has(id):
+		message = "Rescue this friend and learn a connected predecessor first."
+		return false
+	var price: int = tree[id].cost
+	if price > echoes:
+		message = "Not enough Echoes."
+		return false
+	var next: Dictionary = companions.duplicate(true)
+	next.purchases[id] = price
+	return _save(echoes - price, best_wave, talents, {}, "", {}, {}, next)

@@ -60,6 +60,10 @@ func run() -> void:
 		check(absf(float(counts[rarity]) / 100000 - expected) < 0.006, "Seeded cascade frequencies match conditional probabilities: " + rarity)
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	game.restart_run()
 	game.set_process(false)

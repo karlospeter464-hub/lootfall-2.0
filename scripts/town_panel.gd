@@ -5,6 +5,9 @@ const WORLD_ART = preload("res://scripts/world_art.gd")
 const HUB_ART = preload("res://scripts/emberhaven_art.gd")
 const TREE = preload("res://scripts/skill_tree.gd")
 var game
+var friends
+var migrate_button: Button
+var friends_home: FriendsHome
 var screen: Control
 var city: VBoxContainer
 var tree_page: Control
@@ -28,6 +31,21 @@ var sandbox_button: Button
 var sandbox_tools: HBoxContainer
 var hub
 var map: Connections
+
+class FriendsHome extends Control:
+	var rescued: Array = []
+	func _draw() -> void:
+		for i in rescued.size():
+			var id: String = rescued[i]
+			var at := Vector2(28 + i * 570, 31)
+			var color := Color("b497ff" if id == "gravity" else "8ce9f7")
+			draw_circle(at, 25, Color(color, 0.12))
+			draw_colored_polygon(PackedVector2Array([at + Vector2(0,-14), at + Vector2(15,17), at + Vector2(-15,17)]), color.darkened(0.35))
+			draw_circle(at + Vector2(0,-17), 7, color)
+			if id == "gravity": draw_arc(at, 26, 0, TAU * 0.8, 24, color, 2, true)
+			else: draw_polyline(PackedVector2Array([at + Vector2(0,-29),at + Vector2(25,16),at + Vector2(-25,16),at + Vector2(0,-29)]), color, 2, true)
+			draw_string(ThemeDB.fallback_font, at + Vector2(40,-5), "Gravitation — home at last" if id == "gravity" else "Prisma — light returns", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
+			draw_string(ThemeDB.fallback_font, at + Vector2(40,18), '"This time, together."' if id == "gravity" else '\"I chose to leave. Now I choose to help.\"', HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("d5dce5"))
 
 class RegionCard extends Control:
 	var region: int = 0
@@ -126,6 +144,9 @@ func _ready() -> void:
 		card.custom_minimum_size = Vector2(371, 175)
 		regions.add_child(card)
 		region_cards.append(card)
+	friends_home = FriendsHome.new()
+	friends_home.custom_minimum_size.y = 62
+	city.add_child(friends_home)
 	sandbox_button = button(city, "", game.enter_world_sandbox)
 	sandbox_button.visible = OS.is_debug_build()
 	sandbox_tools = HBoxContainer.new()
@@ -133,6 +154,9 @@ func _ready() -> void:
 	for stage in [0, 1, 2, 3]:
 		button(sandbox_tools, "%d%% preview" % (stage * 25), game.sandbox_preview.bind(stage))
 	button(sandbox_tools, "Heal + overflow / +3000 test Echoes", game.sandbox_complete)
+	friends = preload("res://scripts/companion_panel.gd").new()
+	friends.game = game
+	migrate_button = button(city, "", migrate_friends)
 	skill_button = button(city, "Awaken the Skill Tree", show_tree)
 	start_button = button(city, "Start Run", game.restart_run)
 	retry_button = button(city, "Retry loading progress", func(): game.progress.load_progress(); refresh())
@@ -185,9 +209,11 @@ func _ready() -> void:
 	reset_button = button(actions, "", refund_all)
 	button(actions, "Back to Town  [Esc]", show_city)
 	status = label(screen, "", Vector2(55, 720), Vector2(1165, 55), 16, Color("e3bf86"))
+	screen.add_child(friends)
 	screen.hide()
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(friends) and friends.visible: return
 	if not screen.visible or (is_instance_valid(game.dev_console) and game.dev_console.is_open):
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
@@ -201,9 +227,11 @@ func open_town() -> void:
 	show_city()
 
 func close_town() -> void:
+	friends.hide()
 	screen.hide()
 
 func show_city() -> void:
+	if is_instance_valid(friends): friends.hide()
 	showing_tree = false
 	city.show()
 	tree_page.hide()
@@ -211,6 +239,9 @@ func show_city() -> void:
 	skill_button.grab_focus()
 
 func show_tree() -> void:
+	if game.progress.companions.enabled:
+		friends.open()
+		return
 	showing_tree = true
 	city.hide()
 	tree_page.show()
@@ -230,6 +261,12 @@ func select_node(id: String) -> void:
 
 func refresh() -> void:
 	var progress = game.progress
+	friends_home.rescued = progress.companions.rescued
+	friends_home.visible = not friends_home.rescued.is_empty()
+	friends_home.queue_redraw()
+	migrate_button.visible = not progress.companions.enabled
+	migrate_button.text = "Switch to Friends / refund exactly %d Echoes + verified save backup" % progress.invested()
+	migrate_button.disabled = not progress.available
 	wallet.text = "%sECHOES %d  /  TALENTS %d / 45  /  HIGHEST UNLOCKED REGION %d  /  REGIONS RESTORED %d" % ["SANDBOX — " if game.sandbox else "", progress.echoes, progress.talents.size(), mini(3, WORLD.restored(progress.world) + 1), WORLD.restored(progress.world)]
 	for card in region_cards:
 		card.world = progress.world
@@ -305,6 +342,14 @@ func refresh() -> void:
 	buy_button.disabled = not progress.available or not TREE.accessible(selected, progress.talents) or progress.echoes < game.talent_cost(selected)
 	reset_button.text = "Reset all  /  Refund %d Echoes" % progress.invested()
 	reset_button.disabled = not progress.available or progress.talents.is_empty()
+	if progress.companions.enabled:
+		wallet.text = "%sECHOES %d / FRIEND TALENTS %d / 30 / REGIONS RESTORED %d" % ["SANDBOX — " if game.sandbox else "", progress.echoes, progress.companions.purchases.size(), WORLD.restored(progress.world)]
+		skill_button.text = "Friends / abilities, loadout & personal talent trees"
+		var names := PackedStringArray()
+		for id in progress.companions.rescued: names.append(game.COMPANIONS.FRIENDS[id].name + " is home")
+		summary.text = "Gravitation: help in Wave 1. Prisma: clear the blighted circle in Wave 2." if names.is_empty() else "Emberhaven / " + "  /  ".join(names)
+		summary.text += "\nQ + E: up to two friends per run. Only their talents apply. Fireball stays on LMB."
+		if progress.companions.legacy_refund > 0: summary.text += "\nLegacy tree converted: exactly %d paid Echoes returned; backup preserved." % progress.companions.legacy_refund
 	if not progress.available:
 		status.text = progress.message
 
@@ -343,3 +388,8 @@ func animate_world(clock: float) -> void:
 	for card in region_cards:
 		card.clock = clock
 		card.queue_redraw()
+
+func migrate_friends() -> void:
+	# The button states the complete conversion before the player chooses it.
+	status.text = "Global tree refunded. Friends replace it; purchases no longer grant old bonuses. Rescue your friends in Waves 1 and 2." if game.progress.migrate_companions() else game.progress.message
+	refresh()

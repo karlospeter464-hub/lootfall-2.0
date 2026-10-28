@@ -14,6 +14,8 @@ var flash: float = 0.0
 var knockback: Vector2 = Vector2.ZERO
 var dead: bool = false
 var frozen: bool = false
+var gravity_pull := Vector2.ZERO
+var companion_slow: float = 0.0
 var boss_name: String = ""
 var visual_clock: float = 0.0
 
@@ -32,11 +34,17 @@ func _physics_process(delta: float) -> void:
 	flash = maxf(0.0, flash - delta)
 	knockback = knockback.move_toward(Vector2.ZERO, 600 * delta)
 	velocity = global_position.direction_to(target.global_position) * move_speed + knockback
+	companion_motion(delta)
 	move_and_slide()
 	position = position.clamp(bounds.position + Vector2.ONE * 17, bounds.end - Vector2.ONE * 17)
 	if global_position.distance_to(target.global_position) < 33.0:
 		target.call("take_damage", contact_damage)
 	queue_redraw()
+
+func companion_motion(delta: float) -> void:
+	companion_slow = maxf(0, companion_slow - delta)
+	if companion_slow > 0: velocity *= 0.7
+	velocity += gravity_pull
 
 func take_projectile_hit(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
 	take_damage(amount, direction)

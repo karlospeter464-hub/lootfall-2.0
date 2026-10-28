@@ -40,6 +40,10 @@ func click(control: Control) -> void:
 func run() -> void:
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	game.set_process(false)
 	var town = game.town_panel
@@ -201,6 +205,7 @@ func run() -> void:
 		SAFE_JSON.write_object(legacy_path, fixture)
 		check(not loaded.load_progress(), "Unknown, fractional, negative, nonnumeric or overflowing talent ledgers are rejected")
 	var failing = PROGRESS.new()
+	failing.companions = game.COMPANIONS.fresh(false)
 	failing.path = "user://missing_tree_parent_%d/progress.json" % OS.get_process_id()
 	failing.echoes = 100
 	check(not failing.buy("power_1", 30) and failing.echoes == 100 and failing.talents.is_empty(), "A failed purchase write changes neither balance nor ownership")

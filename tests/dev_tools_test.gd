@@ -31,6 +31,10 @@ func run() -> void:
 			check(Geometry2D.is_point_in_polygon(point, shore), "Depth stays within the water shoreline")
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	game.set_process(false)
 	var dev = game.dev_console

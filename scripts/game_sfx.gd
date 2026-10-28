@@ -10,7 +10,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	# The headless dummy audio driver cannot drain active playback during immediate test exit.
 	muted = DisplayServer.get_name() == "headless"
-	for key in ["orb", "vacuum", "card", "growth", "restored"]:
+	for key in ["orb", "vacuum", "card", "growth", "restored", "gravity", "charge", "beam", "collapse"]:
 		clips[key] = tone(key)
 	for index in 4:
 		var voice := AudioStreamPlayer.new()
@@ -38,8 +38,8 @@ func cue(key: String, pitch: float = 1.0) -> void:
 	voice.play()
 
 static func tone(key: String) -> AudioStreamWAV:
-	var duration: float = {"orb": 0.12, "vacuum": 0.38, "card": 0.32, "growth": 0.6, "restored": 1.6}[key]
-	var frequency: float = {"orb": 880.0, "vacuum": 440.0, "card": 523.25, "growth": 329.63, "restored": 261.63}[key]
+	var duration: float = {"orb": 0.12, "vacuum": 0.38, "card": 0.32, "growth": 0.6, "restored": 1.6, "gravity": 0.65, "charge": 0.45, "beam": 0.35, "collapse": 0.5}[key]
+	var frequency: float = {"orb": 880.0, "vacuum": 440.0, "card": 523.25, "growth": 329.63, "restored": 261.63, "gravity": 82.4, "charge": 660.0, "beam": 1046.5, "collapse": 65.4}[key]
 	var samples := PackedByteArray()
 	samples.resize(int(duration * 22050) * 2)
 	for index in samples.size() / 2:

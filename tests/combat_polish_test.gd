@@ -38,6 +38,10 @@ func remove_escorts() -> void:
 func run() -> void:
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	check(game.burst_radius == 105 and is_equal_approx(game.burst_damage_ratio, 0.7), "New Burst defaults are 105 radius and 70 percent")
 	game.restart_run()

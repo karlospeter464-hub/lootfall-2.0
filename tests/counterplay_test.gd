@@ -60,6 +60,10 @@ func shoot_during_warning(build_index: int) -> Dictionary:
 func run() -> void:
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	# Keep the previous five-hit reference; CE2 tests separately compare 3 / 4 / 5.
 	game.seer_interrupt_hits = 5

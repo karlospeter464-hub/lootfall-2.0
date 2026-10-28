@@ -9,6 +9,8 @@ const PROGRESS = preload("res://scripts/progress_store.gd")
 const DEV_CONSOLE = preload("res://scripts/dev_console.gd")
 const CATALOG = preload("res://scripts/item_catalog.gd")
 const INVENTORY_PANEL = preload("res://scripts/inventory_panel.gd")
+const COMPANIONS = preload("res://scripts/companion_catalog.gd")
+const COMPANION_MAGIC = preload("res://scripts/companion_magic.gd")
 const TALENTS = preload("res://scripts/skill_tree.gd")
 const TOWN_PANEL = preload("res://scripts/town_panel.gd")
 const WORLD = preload("res://scripts/world_regions.gd")
@@ -19,7 +21,7 @@ const UPGRADE_CARD = preload("res://scripts/upgrade_card.gd")
 const BOUNDS := Rect2(64, 128, 1152, 592)
 const UPGRADE_TITLES := ["Ember Power", "Quick Casting", "Fire Fan", "Ember Burst", "Piercing Flame", "Overcharge"]
 
-enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTRO }
+enum State { FIGHTING, BETWEEN_WAVES, UPGRADE, PAUSED, FINISHED, TOWN, BOSS_INTRO, RESCUE }
 
 @export_range(1, 50, 1) var first_wave_enemies: int = 8
 @export_range(0, 20, 1) var enemies_per_wave: int = 4
@@ -165,6 +167,7 @@ var equipment: Dictionary = {"scepter": "", "book": ""}
 var inventory_panel
 var town_panel
 var active_talents: Dictionary = {}
+var companion_magic
 var last_healed_wave: int = 0
 var notice_label: Label
 var notice_timer: float = 0.0
@@ -240,6 +243,10 @@ func _ready() -> void:
 		add_child(dev_console)
 	sfx = GAME_SFX.new()
 	add_child(sfx)
+	companion_magic = COMPANION_MAGIC.new()
+	companion_magic.game = self
+	add_child(companion_magic)
+	companion_magic.hud = add_label(health_label.get_parent(), "", Vector2(600, 28), 16, Color("c8c4ff"))
 	feel = GAME_FEEL.new()
 	feel.game = self
 	add_child(feel)
@@ -288,6 +295,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if is_instance_valid(dev_console) and dev_console.is_open:
 		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_Q, KEY_E]:
+		companion_magic.cast(0 if event.keycode == KEY_Q else 1, get_global_mouse_position())
+		get_viewport().set_input_as_handled()
 	if event.is_action_pressed("pause") and not event.is_echo():
 		if state == State.PAUSED:
 			resume_run()
@@ -375,7 +385,8 @@ func restart_run() -> void:
 	state = State.BETWEEN_WAVES
 	last_healed_wave = 0
 	emberguard_used = false
-	active_talents = progress.talents.duplicate()
+	active_talents = progress.talents.duplicate() if not progress.companions.enabled else {}
+	companion_magic.reset()
 	if is_instance_valid(town_panel):
 		town_panel.close_town()
 	player.position = BOUNDS.get_center()
@@ -431,6 +442,7 @@ func begin_wave() -> void:
 	boss_spawned = false
 	spawn_clock = 0.0
 	state = State.FIGHTING
+	companion_magic.begin_rescue()
 	if is_boss_wave(wave):
 		state = State.BOSS_INTRO
 		break_clock = 2.0
@@ -653,10 +665,14 @@ func complete_wave() -> void:
 	wave_summaries.append({"wave": wave, "boss": boss_title(wave) if is_boss_wave(wave) else "", "seconds": wave_seconds, "damage_taken": maxf(0, damage_taken - wave_damage_start), "roles": wave_roles.duplicate()})
 	if last_healed_wave < wave:
 		last_healed_wave = wave
-		var perks: Dictionary = TALENTS.bonuses(active_talents, self)
+		var perks: Dictionary = permanent_bonuses()
 		if perks.healing > 0:
 			player.health = minf(player.health_limit, player.health + player.health_limit * perks.healing * perks.heal_multiplier)
 			player.health_changed.emit(player.health, player.health_limit)
+	if companion_magic.offer_rescue(): return
+	finish_wave_rewards()
+
+func finish_wave_rewards() -> void:
 	if card_wave(wave):
 		state = State.UPGRADE
 		roll_upgrade_cards()
@@ -770,6 +786,7 @@ func finish_run(victory: bool) -> void:
 		dev_console.close_console()
 	inventory_panel.close_inventory()
 	state = State.FINISHED
+	companion_magic.clear_combat()
 	pending_echo.clear()
 	run_ended_usec = Time.get_ticks_usec()
 	result_victory = victory
@@ -880,7 +897,7 @@ func spawn_projectile(origin: Vector2, direction: Vector2, damage: float, contex
 	var projectile = PROJECTILE.instantiate()
 	projectile.position = origin
 	projectile.direction = direction
-	var perks: Dictionary = TALENTS.bonuses(active_talents, self)
+	var perks: Dictionary = permanent_bonuses()
 	projectile.damage = damage * (1.3 if echo and active_talents.has("flow_10") else 1.0)
 	projectile.max_hits = 2 if mechanic_cards.has(4) else 1
 	projectile.echoed = echo
@@ -920,7 +937,7 @@ func update_build() -> void:
 	player.projectile_count = build.projectiles
 	player.spread_angle = projectile_spread
 	player.overcharge_enabled = mechanic_cards.has(5)
-	var perks: Dictionary = TALENTS.bonuses(active_talents, self)
+	var perks: Dictionary = permanent_bonuses()
 	player.health_limit = player.max_health * (1.0 + perks.health)
 	player.hurt_haste_ratio = perks.haste
 	player.hurt_haste_duration = tree_haste_duration
@@ -937,7 +954,7 @@ func update_build() -> void:
 	refresh_upgrade_cards()
 
 func build_for(scepter: String, book: String) -> Dictionary:
-	var perks: Dictionary = TALENTS.bonuses(active_talents, self)
+	var perks: Dictionary = permanent_bonuses()
 	var gear_damage: float = (scepter_damage_bonus if scepter == "ember_scepter" else 0.0) + (focus_damage_bonus if book == "focus_grimoire" else 0.0)
 	var interval: float = player.base_cast_interval * pow(1.0 - upgrade_cast_reduction, quick_upgrades)
 	if scepter == "swift_scepter":
@@ -949,7 +966,7 @@ func build_for(scepter: String, book: String) -> Dictionary:
 	return {"damage": damage, "interval": maxf(player.MIN_CAST_INTERVAL, interval), "projectiles": mini(player.MAX_PROJECTILES_PER_CAST, 1 + fan_upgrades * upgrade_projectiles), "splash": book == "cinder_codex", "splash_damage": damage * explosion_damage_ratio * perks.area_multiplier if book == "cinder_codex" else 0.0, "burst_damage": burst_damage(damage), "charged_damage": charged_damage(damage)}
 
 func burst_damage(amount: float) -> float:
-	return amount * burst_damage_ratio * TALENTS.bonuses(active_talents, self).area_multiplier
+	return amount * burst_damage_ratio * permanent_bonuses().area_multiplier
 
 func charged_damage(amount: float) -> float:
 	return amount * (1.0 + overcharge_bonus)
@@ -1024,6 +1041,7 @@ func destroy_bag_item(index: int) -> bool:
 	return true
 
 func enemy_slain(at: Vector2) -> void:
+	companion_magic.slain(at)
 	kills += 1
 	if state == State.FIGHTING and wave > 0:
 		wave_echo_kills += 1
@@ -1098,7 +1116,7 @@ func item_direct_hit(primary: Object, amount: float, context: Dictionary) -> voi
 		if phoenix_hits >= 10:
 			phoenix_hits = 0
 			phoenix_left = phoenix_cooldown
-			var healing: float = minf(player.health_limit - player.health, player.health_limit * phoenix_heal_ratio * TALENTS.bonuses(active_talents, self).heal_multiplier)
+			var healing: float = minf(player.health_limit - player.health, player.health_limit * phoenix_heal_ratio * permanent_bonuses().heal_multiplier)
 			if healing > 0:
 				player.health += healing
 				player.health_changed.emit(player.health, player.health_limit)
@@ -1126,6 +1144,7 @@ func item_direct_hit(primary: Object, amount: float, context: Dictionary) -> voi
 
 func projectile_impact(at: Vector2, hit_damage: float, primary: Object, context: Dictionary = {}) -> void:
 	shots_hit += 1
+	companion_magic.fireball_hit(primary)
 	player.record_direct_hit()
 	item_direct_hit(primary, hit_damage, context)
 	# Snapshot the direct kill before Codex splash can kill other enemies.
@@ -1133,7 +1152,7 @@ func projectile_impact(at: Vector2, hit_damage: float, primary: Object, context:
 		primary.set_meta("ember_burst_triggered", true)
 		area_damage(primary.global_position, burst_damage(hit_damage), burst_radius, primary, true)
 	if codex_active:
-		area_damage(at, hit_damage * explosion_damage_ratio * TALENTS.bonuses(active_talents, self).area_multiplier, explosion_radius, primary)
+		area_damage(at, hit_damage * explosion_damage_ratio * permanent_bonuses().area_multiplier, explosion_radius, primary)
 
 func area_damage(at: Vector2, amount: float, radius: float, primary: Object, burst: bool = false) -> void:
 	if amount <= 0:
@@ -1159,7 +1178,7 @@ func emberguard() -> void:
 	if state != State.FIGHTING or emberguard_used or not active_talents.has("vitality_1"):
 		return
 	emberguard_used = true
-	var healing: float = minf(player.health_limit - player.health, player.health_limit * tree_emberguard_heal * TALENTS.bonuses(active_talents, self).heal_multiplier)
+	var healing: float = minf(player.health_limit - player.health, player.health_limit * tree_emberguard_heal * permanent_bonuses().heal_multiplier)
 	player.health += healing
 	player.health_changed.emit(player.health, player.health_limit)
 	if healing > 0 and effects.size() < 512:
@@ -1244,7 +1263,7 @@ func create_interface() -> void:
 	ui.add_child(health_bar)
 	build_label = add_label(ui, "", Vector2(365, 744), 15, Color("d4c6ad"))
 	cards_label = add_label(ui, "", Vector2(365, 722), 13, Color("baf7ff"))
-	add_label(ui, "WASD Move / MOUSE Aim / LMB Cast / I Equipment / ESC Pause" + (" / F1 Dev" if OS.is_debug_build() else ""), Vector2(365, 770), 13, Color("8995a5"))
+	add_label(ui, "WASD Move / MOUSE Aim / LMB Cast / Q + E Friends / I Equipment / ESC Pause" + (" / F1 Dev" if OS.is_debug_build() else ""), Vector2(365, 770), 13, Color("8995a5"))
 	var shade := ColorRect.new()
 	overlay_shade = shade
 	shade.color = Color(0.025, 0.035, 0.06, 0.88)
@@ -1364,7 +1383,14 @@ func talent_direct_damage(target: Object, amount: float, context: Dictionary) ->
 	var value: float = hunter_damage(target, amount, context)
 	if not target.boss_name.is_empty() and active_talents.has("power_10"):
 		value *= 1.25
-	return value
+	return companion_magic.fireball_damage(target, value)
+
+func permanent_bonuses() -> Dictionary:
+	var result: Dictionary = TALENTS.bonuses(active_talents, self)
+	if is_instance_valid(companion_magic):
+		var extra: Dictionary = COMPANIONS.bonuses(companion_magic.talents)
+		for stat in extra: result[stat] += extra[stat]
+	return result
 
 func enter_world_sandbox() -> bool:
 	if not OS.is_debug_build() or state != State.TOWN:

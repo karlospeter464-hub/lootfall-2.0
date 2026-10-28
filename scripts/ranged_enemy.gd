@@ -70,6 +70,7 @@ func _physics_process(delta: float) -> void:
 			charge_left = windup
 			marked_position = target.global_position
 			velocity = Vector2.ZERO
+	companion_motion(delta)
 	move_and_slide()
 	position = position.clamp(bounds.position + Vector2.ONE * 17, bounds.end - Vector2.ONE * 17)
 	queue_redraw()

@@ -31,6 +31,10 @@ func frames() -> void:
 func run() -> void:
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	game.restart_run()
 	game.set_process(false)
@@ -147,7 +151,7 @@ func run() -> void:
 	panel.open_inventory()
 	check(not panel.is_open, "Equipment cannot reopen over the result screen")
 	var saved: Dictionary = SAFE_JSON.read_object(game.progress.path)
-	check(saved.size() == 8 and saved.version == 5 and saved.has("world") and not saved.has("equipment"), "Progress v5 saves talents, Echo ledger and world without persisting equipment")
+	check(saved.size() == 8 and saved.version == 5 and saved.has("world") and not saved.has("equipment"), "Legacy progress v5 saves talents, Echo ledger and world without persisting equipment")
 	game.restart_run()
 	check(game.bag_used() == 0 and game.equipment.book == "" and game.equipment.scepter == "" and game.loot.get_child_count() == 0 and not game.codex_spawned, "Restart clears bag, gear, ground loot and natural Codex eligibility")
 	check(game.progress.echoes == 30 and game.player.damage == base and not paused, "Restart keeps Echoes and restores the base build")

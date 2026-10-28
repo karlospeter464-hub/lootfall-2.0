@@ -311,7 +311,7 @@ func refresh_build() -> void:
 			effect_stats.text += "\n" + game.TALENTS.NODES[id].name + ": " + game.TALENTS.description(id, game)
 	if game.player.last_light:
 		effect_stats.text += "\nLast Light: " + ("used this run" if game.player.last_light_used else "ready")
-	effect_stats.text += "\nPermanent talents: %d in this run's snapshot" % game.active_talents.size()
+	effect_stats.text += "\nPermanent talents: %d in this run's snapshot" % (game.active_talents.size() + game.companion_magic.talents.size())
 
 func equip_selected() -> void:
 	if game.equip_item(selected_bag):

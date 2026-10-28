@@ -54,6 +54,10 @@ func run() -> void:
 		check(tone.data.size() > 1000 and tone.mix_rate == 22050 and tone.format == AudioStreamWAV.FORMAT_16_BITS, "Self-generated playable audio: " + key)
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	game.set_process(false)
 	game.restart_run()

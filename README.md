@@ -1,5 +1,15 @@
 # Lootfall 2.0 — The Ember Trial
 
+## Companion vertical slice — 2026-10-28
+
+**F5 → Explore → rescue Gravitation after wave 1 and Prisma after wave 2 → Q/E.** The normal wave-2 upgrade card follows the second rescue. Return to Emberhaven and open **Friends** for each 15-node permanent tree and two-slot loadout. Only equipped friends' talents apply. Fireball, cards, items, Echoes pickups and all three Restoration regions remain playable.
+
+Existing saves keep their global tree and v5 format until the clearly labeled **Switch to Friends** button is selected: verified byte backup, exact paid-price refund, preserved world and pending Echo ledger. Fresh saves use companions/v6. No companion respec is introduced. Debug: F1 → Test tools → unlock both / ready Q/E; use the separate sandbox for disposable currency and purchases.
+
+See [COMPANION_PLAYTEST.md](COMPANION_PLAYTEST.md) for controls, all twelve special effects, costs, migration/downgrade rules and the human acceptance checklist. **1580 passing checks in 21 suites**, including 167 new companion checks; the new suite also passed with native D3D12 and six inspected captures. Legacy suites explicitly use historical global-tree fixtures. Native 12-enemy AI/spell probe: median 7.08 ms, p95 10.66 ms. Artificial 80-enemy stress is slow even without magic (151.10/164.20 ms vs 161.78/176.40 ms with spells); this is not the default cap or a full late-run/IO benchmark. Sound mix, human pacing and final balance remain open. No new export or push.
+
+Earlier sections below are historical milestones.
+
 ## Current Apprentice default — 2026-10-28
 
 **F5 → Start Run** now uses the approved four-direction mage. Mouse aim selects front/right/back/left independently of WASD movement; arm, book and hat have local idle/move/cast gestures. The approved rear V2 shows the open inner pages toward the viewer. **V** switches between this mage and the previous v01/A+ visual. Disable Player → Use Artwork before starting for the procedural fallback. Collision, projectile origins, combat and progression are unchanged. Test scenery remains isolated; existing release ZIPs are unchanged.

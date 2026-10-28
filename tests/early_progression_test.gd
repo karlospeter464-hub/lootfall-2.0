@@ -55,6 +55,10 @@ func settle() -> void:
 func run() -> void:
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	for cleared in 3:
 		game.completed_waves = cleared

@@ -57,6 +57,10 @@ func run() -> void:
 	check(reload.refund_all() and reload.echoes == old_echoes + 27 and reload.world == old_world, "Exact old-price refunds leave world progress untouched")
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	game.set_process(false)
 	game.progress = reload

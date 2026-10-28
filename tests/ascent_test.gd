@@ -59,6 +59,10 @@ func compare_threshold(threshold: int, build_index: int) -> void:
 func run() -> void:
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
+	# Preserve this suite's historical global-tree fixture.
+	game.progress.companions = game.COMPANIONS.fresh(false)
+	game.companion_magic.reset()
+	game.town_panel.refresh()
 	await process_frame
 	check(game.total_waves == 100 and game.seer_interrupt_hits == 3, "CE2 defaults use safety cap 100 and three direct hits")
 	game.restart_run()
