@@ -5,6 +5,7 @@ var game
 var friend: String = "gravity"
 var selected: String = "gravity.damage0"
 var heading: Label
+var ability: Label
 var detail: Label
 var message: Label
 var buy_button: Button
@@ -48,6 +49,7 @@ func _ready() -> void:
 			next[slot] = id
 			message.text = "Loadout saved for the next run." if game.progress.equip_companions(next) else game.progress.message
 			refresh())
+	ability = label("", Vector2(45, 184), Vector2(1160, 32), 16)
 	map = Control.new()
 	map.position = Vector2(45, 220)
 	map.size = Vector2(770, 480)
@@ -99,7 +101,18 @@ func rebuild() -> void:
 	refresh()
 
 func refresh() -> void:
+	if not is_instance_valid(game.companion_magic): return
 	var state: Dictionary = game.progress.companions
+	var learned := {}
+	for id in state.purchases:
+		if id.get_slice(".", 0) in state.slots: learned[id] = state.purchases[id]
+	# Preview the selected friend alongside the equipped partner, without duplicating stats.
+	for id in state.purchases:
+		if id.get_slice(".", 0) == friend: learned[id] = state.purchases[id]
+	var stats: Dictionary = game.companion_magic.ability_stats(friend, learned)
+	ability.text = "%s  /  %s  /  %.0f damage%s  /  %.0fs cooldown  /  hover for full details" % [CATALOG.FRIENDS[friend].name, CATALOG.FRIENDS[friend].ability, stats.damage, " at collapse" if friend == "gravity" else " per target", stats.cooldown]
+	ability.mouse_filter = Control.MOUSE_FILTER_PASS
+	ability.tooltip_text = game.companion_magic.ability_description(friend, learned)
 	heading.text = "%sFRIENDS  /  %d ECHOES  /  %s — %s" % ["SANDBOX — " if game.sandbox else "", game.progress.echoes, CATALOG.FRIENDS[friend].name, "RESCUED" if friend in state.rescued else "Rescue in Wave %d" % CATALOG.FRIENDS[friend].wave]
 	for i in 2:
 		var picker: OptionButton = pickers[i]

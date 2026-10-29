@@ -16,6 +16,7 @@ var comparison: Label
 var equipped_stats: Label
 var cards_text: RichTextLabel
 var effect_stats: Label
+var ability_text: Label
 var bag_title: Label
 var notice: Label
 var equip_button: Button
@@ -28,7 +29,7 @@ func _ready() -> void:
 	layer = 10
 	screen = Control.new()
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	screen.theme = Theme.new()
+	screen.theme = preload("res://scripts/menu_theme.gd").create()
 	screen.theme.default_font_size = 16
 	add_child(screen)
 	var shade := ColorRect.new()
@@ -42,6 +43,7 @@ func _ready() -> void:
 	style.bg_color = Color("1a2533")
 	style.border_color = Color("937952")
 	style.set_border_width_all(1)
+	style.set_corner_radius_all(16)
 	style.set_content_margin_all(20)
 	panel.add_theme_stylebox_override("panel", style)
 	screen.add_child(panel)
@@ -122,6 +124,9 @@ func _ready() -> void:
 	build_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	build_details.add_theme_constant_override("separation", 12)
 	build_scroll.add_child(build_details)
+	label(build_details, "COMPANION ABILITIES / Q + E", 18, Color("c9aa7e"))
+	ability_text = label(build_details, "", 16, Color("bce8ed"))
+	ability_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label(build_details, "SELECTED CARDS / RUN EFFECTS", 18, Color("c9aa7e"))
 	cards_text = RichTextLabel.new()
 	cards_text.bbcode_enabled = true
@@ -269,6 +274,11 @@ func item_effect(id: String) -> String:
 	return "none"
 
 func refresh_build() -> void:
+	var abilities := PackedStringArray()
+	for i in 2:
+		var id: String = game.companion_magic.slots[i]
+		abilities.append(["Q", "E"][i] + "  /  " + ("Empty slot — rescue a friend and equip them in Emberhaven." if id == "" else game.companion_magic.ability_description(id)))
+	ability_text.text = "\n\n".join(abilities)
 	var build: Dictionary = game.build_for(game.equipment.scepter, game.equipment.book)
 	equipped_stats.text = "Direct damage / projectile     %.1f\nCast interval                             %.3f s\nProjectiles / cast                       %d\nHealth                                        %.1f / %.1f" % [game.player.damage, game.player.effective_interval(), game.player.projectile_count, game.player.health, game.player.health_limit]
 	equipped_stats.text += "\nCodex splash    %.1f damage / %.0f radius" % [build.splash_damage, game.explosion_radius] if build.splash else "\nCodex splash    OFF"

@@ -246,7 +246,7 @@ func _ready() -> void:
 	companion_magic = COMPANION_MAGIC.new()
 	companion_magic.game = self
 	add_child(companion_magic)
-	companion_magic.hud = add_label(health_label.get_parent(), "", Vector2(600, 28), 16, Color("c8c4ff"))
+	companion_magic.hud = add_label(health_label.get_parent(), "", Vector2(580, 20), 14, Color("c8c4ff"))
 	feel = GAME_FEEL.new()
 	feel.game = self
 	add_child(feel)
@@ -1226,7 +1226,7 @@ func create_interface() -> void:
 	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(ui)
-	var theme := Theme.new()
+	var theme := preload("res://scripts/menu_theme.gd").create()
 	theme.default_font_size = 18
 	theme.set_color("font_color", "Label", Color("e9ddc7"))
 	ui.theme = theme
@@ -1279,6 +1279,7 @@ func create_interface() -> void:
 	panel.bg_color = Color("1a2330")
 	panel.border_color = Color("927755")
 	panel.set_border_width_all(1)
+	panel.set_corner_radius_all(16)
 	panel.content_margin_left = 30
 	panel.content_margin_right = 30
 	panel.content_margin_top = 26

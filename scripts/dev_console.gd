@@ -124,6 +124,7 @@ func _ready() -> void:
 	if OS.get_cmdline_user_args().has("--test-mode"):
 		profile_path = "user://test_balance_%d.json" % OS.get_process_id()
 	screen = Control.new()
+	screen.theme = preload("res://scripts/menu_theme.gd").create()
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(screen)
 	var shade := ColorRect.new()
@@ -135,6 +136,7 @@ func _ready() -> void:
 	panel.size = Vector2(1140, 670)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("1b2532")
+	style.set_corner_radius_all(16)
 	style.set_content_margin_all(20)
 	panel.add_theme_stylebox_override("panel", style)
 	screen.add_child(panel)

@@ -34,19 +34,20 @@ func has(id: String) -> bool:
 func cast(slot: int, at: Vector2) -> bool:
 	if slot not in [0, 1] or game.get_tree().paused or game.state != game.State.FIGHTING or game.player.health <= 0 or cooldowns[slot] > 0: return false
 	var id: String = slots[slot]
+	var stats: Dictionary = ability_stats(id)
 	if id == "gravity":
 		if not field.is_empty(): return false
 		var target: Vector2 = game.player.position + (at - game.player.position).limit_length(480)
-		field = {"at": target.clamp(game.BOUNDS.position + Vector2.ONE * 24, game.BOUNDS.end - Vector2.ONE * 24), "left": 5.0 if has("gravity.duration") else 3.5, "radius": 200.0 if has("gravity.radius") else 150.0, "kills": 0, "damage": base_damage() * 3}
-		cooldowns[slot] = 9.0
+		field = {"at": target.clamp(game.BOUNDS.position + Vector2.ONE * 24, game.BOUNDS.end - Vector2.ONE * 24), "left": stats.duration, "radius": stats.radius, "kills": 0, "damage": stats.damage}
+		cooldowns[slot] = stats.cooldown
 		game.sfx.cue("gravity")
 	elif id == "prism":
 		if not beam.is_empty(): return false
 		var direction: Vector2 = game.player.position.direction_to(at)
 		if direction.is_zero_approx(): direction = game.player.aim
-		beam = {"at": game.player.position, "direction": direction, "left": maxf(0.15, (0.3 if has("prism.charge") else 0.65) - ash_charge), "fired": false, "width": 54.0 if has("prism.width") else 30.0, "damage": base_damage() * 4}
+		beam = {"at": game.player.position, "direction": direction, "left": stats.charge, "fired": false, "width": stats.width, "damage": stats.damage}
 		ash_charge = 0
-		cooldowns[slot] = 7.0
+		cooldowns[slot] = stats.cooldown
 		game.sfx.cue("charge")
 	else: return false
 	game.player.cast_flash = 0.16
@@ -190,7 +191,12 @@ func refresh_hud() -> void:
 	for i in 2:
 		var id: String = slots[i]
 		lines.append(["Q", "E"][i] + "  " + ("Rescue a friend" if id == "" else CATALOG.FRIENDS[id].ability + ("  READY" if cooldowns[i] <= 0 else "  %.1fs" % cooldowns[i])))
-	hud.text = "    /    ".join(lines)
+	hud.text = "    /    ".join(lines) + "  /  I: ability details"
+	hud.mouse_filter = Control.MOUSE_FILTER_PASS
+	var descriptions := PackedStringArray()
+	for id in slots:
+		if id != "": descriptions.append(ability_description(id))
+	hud.tooltip_text = "\n\n".join(descriptions)
 	if not beam.is_empty() and not beam.fired: hud.text += "  /  CHARGING"
 
 func _draw() -> void:
@@ -226,3 +232,33 @@ func _draw() -> void:
 	for enemy in game.enemies.get_children():
 		if not enemy.dead and enemy.get_meta("prism_until", 0.0) > clock:
 			draw_arc(enemy.position, 25, 0, TAU, 20, Color("8ce9f7"), 2, true)
+
+func ability_stats(id: String, learned: Variant = null) -> Dictionary:
+	var owned: Dictionary = talents if learned == null else learned
+	var damage: float = game.player.base_damage * (1.0 + CATALOG.bonuses(owned).damage)
+	if id == "gravity":
+		return {"damage": damage * 3 if owned.has("gravity.collapse") else 0.0, "cooldown": 9.0, "radius": 200.0 if owned.has("gravity.radius") else 150.0, "duration": 5.0 if owned.has("gravity.duration") else 3.5}
+	if id == "prism":
+		return {"damage": damage * 4, "cooldown": 7.0, "width": 54.0 if owned.has("prism.width") else 30.0, "charge": maxf(0.15, (0.3 if owned.has("prism.charge") else 0.65) - (ash_charge if learned == null else 0.0))}
+	return {}
+
+func ability_description(id: String, learned: Variant = null) -> String:
+	var owned: Dictionary = talents if learned == null else learned
+	var stats: Dictionary = ability_stats(id, learned)
+	if stats.is_empty(): return "Empty ability slot."
+	var text: String = CATALOG.FRIENDS[id].name + " — " + CATALOG.FRIENDS[id].ability
+	if id == "gravity":
+		text += "\nPulls enemies toward the aimed point for %.1f s. Radius %.0f; cooldown %.0f s." % [stats.duration, stats.radius, stats.cooldown]
+		text += "\nCollapse: %.1f damage per target." % stats.damage if owned.has("gravity.collapse") else "\nDamage: 0 — crowd control. Learn Gravitational Collapse to add an explosion."
+		if owned.has("gravity.harvest") and owned.has("gravity.collapse"): text += " Kills in the field add 15%% each, up to %.1f damage (+150%%)." % (stats.damage * 2.5)
+	else:
+		text += "\n%.1f damage per target. Pierces every enemy in the aimed line.\nCharge %.2f s; width %.0f; cooldown %.0f s. Aim locks when E/Q is pressed." % [stats.damage, stats.charge, stats.width, stats.cooldown]
+		if owned.has("prism.marked"): text += "\nMarked targets: %.1f damage (requires a fireball mark)." % (stats.damage * 1.4)
+		if owned.has("prism.split"): text += "\nTwo short split rays: %.1f damage each; no repeated main-ray hits." % (stats.damage * 0.5)
+	if id == "gravity":
+		if owned.has("gravity.slow"): text += "\nFireball hits: slow 30% for 1.5 s."
+		if owned.has("gravity.captured"): text += " Fireballs in the field: +25% damage."
+	else:
+		if owned.has("prism.mark"): text += "\nFireballs mark targets for 4 s."
+		if owned.has("prism.kindle"): text += " Kills shorten charge by 0.1 s (0.15 s minimum)."
+	return text + "\nDamage before enemy armor; companion talents only."

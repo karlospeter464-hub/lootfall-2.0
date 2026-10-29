@@ -1,5 +1,10 @@
 # Lootfall 2.0 — The Ember Trial
 
+## Menu clarity and companion inspection — 2026-10-29
+
+Press **I** for **Companion abilities / Q + E**: damage per target, cooldown, duration/charge, radius/width and active talent interactions. Base and conditional damage are separated; Black Hole explains zero damage until Collapse is learned. The HUD and Friends ability summary have hover descriptions. Casting and inspection share their numerical source. Town, Friends, inventory, pause/results and developer tabs use unified buttons, focus/hover states and calmer frames. **605 checks in six affected suites passed; 49 new UI checks also passed natively with eight inspected screenshots.** Earlier sections below describe prior milestones.
+
+
 ## Companion vertical slice — 2026-10-28
 
 **F5 → Explore → rescue Gravitation after wave 1 and Prisma after wave 2 → Q/E.** The normal wave-2 upgrade card follows the second rescue. Return to Emberhaven and open **Friends** for each 15-node permanent tree and two-slot loadout. Only equipped friends' talents apply. Fireball, cards, items, Echoes pickups and all three Restoration regions remain playable.

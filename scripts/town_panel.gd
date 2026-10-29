@@ -98,6 +98,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 15
 	screen = Control.new()
+	screen.theme = preload("res://scripts/menu_theme.gd").create()
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(screen)
 	var shade := ColorRect.new()
@@ -271,9 +272,9 @@ func refresh() -> void:
 	for card in region_cards:
 		card.world = progress.world
 		card.queue_redraw()
-	sandbox_button.text = "Leave sandbox — return to normal save" if game.sandbox else "Restoration sandbox — separate test save"
+	sandbox_button.text = "Leave sandbox — return to normal save" if game.sandbox else "DEVELOPMENT  /  Restoration sandbox · Separate test save"
 	sandbox_tools.visible = game.sandbox
-	start_button.text = "Explore " + WORLD.REGIONS[WORLD.frontier(progress.world)].name + "  /  local Wave 1"
+	start_button.text = "START EXPEDITION  /  " + WORLD.REGIONS[WORLD.frontier(progress.world)].name + "  ·  Wave 1"
 	var bonuses: Dictionary = TREE.bonuses(progress.talents, game)
 	summary.text = "NEXT RUN  /  +%.0f%% damage  /  +%.0f%% health  /  %.0f%% shorter interval" % [bonuses.damage * 100, bonuses.health * 100, minf(0.6, bonuses.interval) * 100]
 	summary.text += "\nPower → First Spark   /   Vitality → Renewal   /   Flow → Second Wind"
@@ -289,6 +290,7 @@ func refresh() -> void:
 		if progress.talents.has(id):
 			roots.append(TREE.NODES[id].name)
 	summary.text += "\nEntry talents: " + (", ".join(roots) if not roots.is_empty() else "Kindling, Emberguard or Arcane Momentum — 30 Echoes each")
+	start_button.add_theme_stylebox_override("normal", preload("res://scripts/menu_theme.gd").panel("34524e", "b6cda5"))
 	start_button.disabled = not progress.available
 	retry_button.visible = not progress.available
 	map.owned = progress.talents
@@ -344,7 +346,7 @@ func refresh() -> void:
 	reset_button.disabled = not progress.available or progress.talents.is_empty()
 	if progress.companions.enabled:
 		wallet.text = "%sECHOES %d / FRIEND TALENTS %d / 30 / REGIONS RESTORED %d" % ["SANDBOX — " if game.sandbox else "", progress.echoes, progress.companions.purchases.size(), WORLD.restored(progress.world)]
-		skill_button.text = "Friends / abilities, loadout & personal talent trees"
+		skill_button.text = "FRIENDS  /  Abilities · Loadout · Talents"
 		var names := PackedStringArray()
 		for id in progress.companions.rescued: names.append(game.COMPANIONS.FRIENDS[id].name + " is home")
 		summary.text = "Gravitation: help in Wave 1. Prisma: clear the blighted circle in Wave 2." if names.is_empty() else "Emberhaven / " + "  /  ".join(names)
