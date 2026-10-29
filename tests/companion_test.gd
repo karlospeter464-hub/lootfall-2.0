@@ -262,7 +262,13 @@ func run() -> void:
 	check(reloaded.load_progress() and reloaded.echoes == 0 and reloaded.companions.rescued.is_empty(), "Reset persists after reload")
 	game.dev_console.close_console()
 	game.restart_run()
-	check(not game.dev_console.reset_character(), "Reset rejected during a run")
+	game.owed_echo_total = 200
+	game.completed_waves = 2
+	game.dev_console.open_console()
+	var reset_button = game.dev_console.find_children("*", "Button", true, false).filter(func(b): return b.text.begins_with("Reset talents"))[0]
+	reset_button.pressed.emit()
+	check(game.state == game.State.TOWN and store.echoes == 0 and game.owed_echo_total == 0, "Actual reset button ends an active run without restoring old credits")
+	check(store.recover_echoes() and store.echoes == 0, "Active-run reset cannot recover discarded rewards")
 	game.queue_free()
 	await process_frame
 	print("COMPANION TEST: %d checks, %d failures" % [checks, failures])

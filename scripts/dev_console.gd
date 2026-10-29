@@ -363,7 +363,7 @@ func build_test_tools(page: VBoxContainer) -> void:
 		game.complete_wave()
 		open_console()
 		status.text = "Wave cleared without kill loot; normal rewards and card choice apply.")
-	button(page, "Reset talents + Echoes + friend story to 0 (town only)", reset_character)
+	button(page, "Reset talents + Echoes + friend story to 0 / end run", reset_character)
 	var friends_row := HBoxContainer.new()
 	page.add_child(friends_row)
 	button(friends_row, "Friends: unlock both (current save)", func():
@@ -592,13 +592,20 @@ func button(parent: Node, text: String, action: Callable) -> void:
 	parent.add_child(control)
 
 func reset_character() -> bool:
-	if not OS.is_debug_build() or game.state != game.State.TOWN:
-		status.text = "Return to Emberhaven first. Reset affects the currently loaded save; regions stay healed."
+	if not OS.is_debug_build():
+		status.text = "Reset is available in debug builds only."
 		return false
+	if game.restoration_pending and not game.restore_completed_waves(): return false
 	if not game.progress.debug_reset_character():
 		status.text = game.progress.message
 		return false
 	close_console()
+	# Clear old run credits before restart so the reset cannot pay them again.
+	game.owed_echo_total = 0
+	game.reward_saved = true
+	game.restoration_pending = false
+	game.feel.reset()
+	game.state = game.State.TOWN
 	game.restart_run()
 	game._show_town()
 	open_console()
