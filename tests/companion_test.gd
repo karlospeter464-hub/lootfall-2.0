@@ -251,6 +251,18 @@ func run() -> void:
 	malformed = good_state.duplicate(true)
 	malformed.slots = ["gravity", "gravity"]
 	check(not C.valid(malformed), "Malformed duplicate loadout rejected on read")
+	var reset_world: Dictionary = store.world.duplicate(true)
+	store.path = failed.path
+	check(not game.dev_console.reset_character() and store.companions == good_state and store.echoes == good_echoes, "Failed reset preserves purchases and wallet")
+	store.path = good_path
+	check(game.dev_console.reset_character(), "Developer reset succeeds in town")
+	check(store.echoes == 0 and store.talents.is_empty() and store.companions == C.fresh(), "Reset clears wallet, talents, rescues and slots without refund")
+	check(store.world == reset_world and game.companion_magic.talents.is_empty(), "World preserved and active talent snapshot cleared")
+	check(store.recover_echoes() and store.echoes == 0, "Old pending Echoes cannot return after reset")
+	check(reloaded.load_progress() and reloaded.echoes == 0 and reloaded.companions.rescued.is_empty(), "Reset persists after reload")
+	game.dev_console.close_console()
+	game.restart_run()
+	check(not game.dev_console.reset_character(), "Reset rejected during a run")
 	game.queue_free()
 	await process_frame
 	print("COMPANION TEST: %d checks, %d failures" % [checks, failures])

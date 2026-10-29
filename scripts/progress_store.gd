@@ -292,3 +292,7 @@ func buy_companion(id: String) -> bool:
 	var next: Dictionary = companions.duplicate(true)
 	next.purchases[id] = price
 	return _save(echoes - price, best_wave, talents, {}, "", {}, {}, next)
+
+func debug_reset_character() -> bool:
+	if not OS.is_debug_build() or not available: return false
+	return _save(0, best_wave, {}, {}, "", {"id": "", "region": 0, "credited": 0}, {"id": "", "earned": 0, "paid": 0}, FRIENDS.fresh(companions.enabled))

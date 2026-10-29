@@ -363,6 +363,7 @@ func build_test_tools(page: VBoxContainer) -> void:
 		game.complete_wave()
 		open_console()
 		status.text = "Wave cleared without kill loot; normal rewards and card choice apply.")
+	button(page, "Reset talents + Echoes + friend story to 0 (town only)", reset_character)
 	var friends_row := HBoxContainer.new()
 	page.add_child(friends_row)
 	button(friends_row, "Friends: unlock both (current save)", func():
@@ -589,3 +590,17 @@ func button(parent: Node, text: String, action: Callable) -> void:
 	control.custom_minimum_size.y = 34
 	control.pressed.connect(action)
 	parent.add_child(control)
+
+func reset_character() -> bool:
+	if not OS.is_debug_build() or game.state != game.State.TOWN:
+		status.text = "Return to Emberhaven first. Reset affects the currently loaded save; regions stay healed."
+		return false
+	if not game.progress.debug_reset_character():
+		status.text = game.progress.message
+		return false
+	close_console()
+	game.restart_run()
+	game._show_town()
+	open_console()
+	status.text = "Reset saved: talents, Echoes and friend rescues cleared. Regions and records preserved."
+	return true
