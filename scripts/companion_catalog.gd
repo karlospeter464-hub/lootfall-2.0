@@ -90,7 +90,7 @@ static func valid(state: Variant) -> bool:
 	if not (refund is int or refund is float) or not is_finite(float(refund)) or refund < 0 or refund > 1000000000 or refund != floorf(refund): return false
 	var reached := {}
 	for id in state.purchases:
-		if not id is String or id.get_slice(".", 0) not in state.rescued: return false
+		if not id is String or not SPECIALS.has(id.get_slice(".", 0)): return false
 		var tree: Dictionary = nodes(id.get_slice(".", 0))
 		var price: Variant = state.purchases[id]
 		if not tree.has(id) or not (price is int or price is float) or not is_finite(float(price)) or price < 1 or price > 1000000000 or price != floorf(price): return false

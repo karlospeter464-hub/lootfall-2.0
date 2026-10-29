@@ -363,7 +363,11 @@ func build_test_tools(page: VBoxContainer) -> void:
 		game.complete_wave()
 		open_console()
 		status.text = "Wave cleared without kill loot; normal rewards and card choice apply.")
-	button(page, "Reset talents + Echoes + friend story to 0 / end run", reset_character)
+	var reset_help := Label.new()
+	reset_help.text = "Separate resets — current save; each ends the run and returns to town.\nStory reset keeps talent investments (inactive until rescue). Talent reset gives no refund."
+	page.add_child(reset_help)
+	for entry in [["Talents only", "talents"], ["Echoes only", "echoes"], ["Friend story only", "story"], ["Healed world + region unlocks/records only", "world"], ["EVERYTHING: talents, Echoes, story, healed world", "all"]]:
+		button(page, "Reset " + entry[0] + " / end run", reset_character.bind(entry[1]))
 	var friends_row := HBoxContainer.new()
 	page.add_child(friends_row)
 	button(friends_row, "Friends: unlock both (current save)", func():
@@ -591,12 +595,13 @@ func button(parent: Node, text: String, action: Callable) -> void:
 	control.pressed.connect(action)
 	parent.add_child(control)
 
-func reset_character() -> bool:
+func reset_character(scope: String = "character") -> bool:
 	if not OS.is_debug_build():
 		status.text = "Reset is available in debug builds only."
 		return false
 	if game.restoration_pending and not game.restore_completed_waves(): return false
-	if not game.progress.debug_reset_character():
+	if scope not in ["character", "echoes", "all"] and not game.flush_echoes(): return false
+	if not game.progress.debug_reset_character(scope):
 		status.text = game.progress.message
 		return false
 	close_console()
@@ -606,8 +611,9 @@ func reset_character() -> bool:
 	game.restoration_pending = false
 	game.feel.reset()
 	game.state = game.State.TOWN
+	if scope in ["world", "all"]: game.region_session_best.fill(0)
 	game.restart_run()
 	game._show_town()
 	open_console()
-	status.text = "Reset saved: talents, Echoes and friend rescues cleared. Regions and records preserved."
+	status.text = "Reset saved: " + scope + ". Run ended; other progress preserved unless EVERYTHING was selected."
 	return true

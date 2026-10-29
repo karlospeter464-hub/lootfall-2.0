@@ -293,6 +293,16 @@ func buy_companion(id: String) -> bool:
 	next.purchases[id] = price
 	return _save(echoes - price, best_wave, talents, {}, "", {}, {}, next)
 
-func debug_reset_character() -> bool:
-	if not OS.is_debug_build() or not available: return false
-	return _save(0, best_wave, {}, {}, "", {"id": "", "region": 0, "credited": 0}, {"id": "", "earned": 0, "paid": 0}, FRIENDS.fresh(companions.enabled))
+func debug_reset_character(scope: String = "character") -> bool:
+	if not OS.is_debug_build() or not available or scope not in ["character", "talents", "echoes", "story", "world", "all"]: return false
+	var next: Dictionary = companions.duplicate(true)
+	if scope in ["character", "all"]: next = FRIENDS.fresh(companions.enabled)
+	if scope == "talents":
+		next.purchases = {}
+		next.legacy_refund = 0
+	if scope == "story":
+		next.rescued = []
+		next.slots = ["", ""]
+	var reset_wallet: bool = scope in ["character", "echoes", "all"]
+	var reset_world: bool = scope in ["world", "all"]
+	return _save(0 if reset_wallet else echoes, 0 if reset_world else best_wave, {} if scope in ["character", "talents", "all"] else talents, WORLD.fresh() if reset_world else world, "", {"id": "", "region": 0, "credited": 0}, {"id": "", "earned": 0, "paid": 0} if reset_wallet else echo_run, next)

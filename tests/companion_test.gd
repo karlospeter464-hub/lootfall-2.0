@@ -99,6 +99,19 @@ func run() -> void:
 	invalid.rescued = ["gravity"]
 	invalid.purchases = {"gravity.damage0": 1.5}
 	check(not C.valid(invalid), "Fractional historical prices rejected")
+	for scope in ["talents", "echoes", "story", "world", "all"]:
+		var scoped = P.new()
+		scoped.path = path + "_scope_" + scope
+		scoped.echoes = 80
+		scoped.best_wave = 8
+		scoped.world = {"points": [600, 50, 0], "best": [8, 2, 0], "overflow": 0}
+		scoped.companions = {"enabled": true, "rescued": ["gravity"], "slots": ["gravity", ""], "purchases": {"gravity.damage0": 10}, "legacy_refund": 0}
+		check(scoped.debug_reset_character(scope), "Scoped reset saves: " + scope)
+		check(scoped.echoes == (0 if scope in ["echoes", "all"] else 80), "Only wallet reset changes Echoes")
+		check(scoped.companions.purchases.is_empty() == (scope in ["talents", "all"]), "Story-only reset preserves talent investments")
+		check(scoped.companions.rescued.is_empty() == (scope in ["story", "all"]), "Only story reset locks rescued friends")
+		check((scoped.world == scoped.WORLD.fresh()) == (scope in ["world", "all"]), "Only healed reset clears regions")
+		check(scoped.load_progress(), "Separated reset reloads including locked purchased trees")
 	var game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await frames()
@@ -265,7 +278,7 @@ func run() -> void:
 	game.owed_echo_total = 200
 	game.completed_waves = 2
 	game.dev_console.open_console()
-	var reset_button = game.dev_console.find_children("*", "Button", true, false).filter(func(b): return b.text.begins_with("Reset talents"))[0]
+	var reset_button = game.dev_console.find_children("*", "Button", true, false).filter(func(b): return b.text.begins_with("Reset EVERYTHING"))[0]
 	reset_button.pressed.emit()
 	check(game.state == game.State.TOWN and store.echoes == 0 and game.owed_echo_total == 0, "Actual reset button ends an active run without restoring old credits")
 	check(store.recover_echoes() and store.echoes == 0, "Active-run reset cannot recover discarded rewards")
